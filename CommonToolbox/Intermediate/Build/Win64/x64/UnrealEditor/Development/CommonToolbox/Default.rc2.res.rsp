@@ -78,7 +78,7 @@
 /DUE_BUILD_DEVELOPMENT=1
 /DORIGINAL_FILE_NAME="UnrealEditor-CommonToolbox.dll"
 /DBUILD_ICON_FILE_NAME="\"..\\Build\\Windows\\Resources\\Default.ico\""
-/DPROJECT_COPYRIGHT_STRING="Fill out your copyright notice in the Description page of Project Settings."
+/DPROJECT_COPYRIGHT_STRING="Copyright Tyni Boat, Inc. All Rights Reserved."
 /DPROJECT_PRODUCT_IDENTIFIER=ModularController
 /fo "D:\RandD\UnrealProjects\ModularController\Plugins\CommonToolbox\Intermediate\Build\Win64\x64\UnrealEditor\Development\CommonToolbox\Default.rc2.res"
 "..\Build\Windows\Resources\Default.rc2"
