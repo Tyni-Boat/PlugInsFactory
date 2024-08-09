@@ -1,0 +1,17 @@
+{
+    "Version": "1.2",
+    "Data": {
+        "Source": "d:\\randd\\unrealprojects\\modularcontroller\\plugins\\commontoolbox\\intermediate\\build\\win64\\x64\\unrealeditor\\development\\commontoolbox\\module.commontoolbox.cpp",
+        "ProvidedModule": "",
+        "PCH": "d:\\randd\\unrealprojects\\modularcontroller\\intermediate\\build\\win64\\x64\\modularcontrollereditor\\development\\unrealed\\sharedpch.unrealed.cpp20.h.pch",
+        "Includes": [
+            "d:\\randd\\unrealprojects\\modularcontroller\\plugins\\commontoolbox\\intermediate\\build\\win64\\x64\\unrealeditor\\development\\commontoolbox\\definitions.commontoolbox.h",
+            "d:\\randd\\unrealprojects\\modularcontroller\\plugins\\commontoolbox\\intermediate\\build\\win64\\unrealeditor\\inc\\commontoolbox\\uht\\commontoolbox.init.gen.cpp",
+            "d:\\randd\\unrealprojects\\modularcontroller\\plugins\\commontoolbox\\intermediate\\build\\win64\\unrealeditor\\inc\\commontoolbox\\uht\\commontoolboxbplibrary.gen.cpp",
+            "d:\\randd\\unrealprojects\\modularcontroller\\plugins\\commontoolbox\\source\\commontoolbox\\public\\commontoolboxbplibrary.h",
+            "d:\\randd\\unrealprojects\\modularcontroller\\plugins\\commontoolbox\\intermediate\\build\\win64\\unrealeditor\\inc\\commontoolbox\\uht\\commontoolboxbplibrary.generated.h"
+        ],
+        "ImportedModules": [],
+        "ImportedHeaderUnits": []
+    }
+}
