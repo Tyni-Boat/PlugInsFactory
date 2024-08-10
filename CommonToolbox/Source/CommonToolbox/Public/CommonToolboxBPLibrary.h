@@ -33,15 +33,15 @@ class UCommonToolboxBPLibrary : public UBlueprintFunctionLibrary
 
 
 	// Check if value is in range (rangeX <= Value < rangeY). if range is invalid (rangeX >= rangeY) return invalidDefault
-	UFUNCTION(BlueprintPure, Category = "Common Toolbox | Math")
+	UFUNCTION(BlueprintPure, Category = "Common Toolbox | Math", meta=(BlueprintThreadSafe))
 	static bool CheckInRange(const FVector2D range, const float value, bool invalidDefault = false);
 
 	// Returns a power of ten for positive values only.
-	UFUNCTION(BlueprintCallable, Category = "Common Toolbox | Math", meta = (CompactNodeTitle = "10powX"))
+	UFUNCTION(BlueprintCallable, Category = "Common Toolbox | Math", meta = (CompactNodeTitle = "10powX", BlueprintThreadSafe))
 	static double TenPowX(const int exponent);
 
 	// Returns a power of two for positive values only.
-	UFUNCTION(BlueprintCallable, Category = "Common Toolbox | Math", meta = (CompactNodeTitle = "2powX"))
+	UFUNCTION(BlueprintCallable, Category = "Common Toolbox | Math", meta = (CompactNodeTitle = "2powX", BlueprintThreadSafe))
 	static double TwoPowX(const int exponent);
 
 #pragma endregion
@@ -49,27 +49,27 @@ class UCommonToolboxBPLibrary : public UBlueprintFunctionLibrary
 #pragma region Conversions
 
 	// Get the number of frame per seconds from a delta time
-	UFUNCTION(BlueprintCallable, Category = "Function Library | Conversions")
+	UFUNCTION(BlueprintCallable, Category = "Function Library | Conversions", meta=(BlueprintThreadSafe))
 	static double GetFPS(double deltaTime);
 
 	// Convert from a bool array to an integer flag. useful to serialize indexes in an array.
-	UFUNCTION(BlueprintCallable, Category = "Common Toolbox | Conversions")
+	UFUNCTION(BlueprintCallable, Category = "Common Toolbox | Conversions", meta=(BlueprintThreadSafe))
 	static int BoolArrayToFlag(const TArray<bool> array);
 
 	// Convert from an integer flag to an bool array. useful to deserialize indexes in an array.
-	UFUNCTION(BlueprintCallable, Category = "Common Toolbox | Conversions")
+	UFUNCTION(BlueprintCallable, Category = "Common Toolbox | Conversions", meta=(BlueprintThreadSafe))
 	static TArray<bool> FlagToBoolArray(int flag);
 
 	// Convert a bool array to an index array
-	UFUNCTION(BlueprintCallable, Category = "Common Toolbox | Conversions")
+	UFUNCTION(BlueprintCallable, Category = "Common Toolbox | Conversions", meta=(BlueprintThreadSafe))
 	static TArray<int> BoolToIndexesArray(const TArray<bool> array);
 
 	// Convert an int array of indexes to an bool array
-	UFUNCTION(BlueprintCallable, Category = "Common Toolbox | Conversions")
+	UFUNCTION(BlueprintCallable, Category = "Common Toolbox | Conversions", meta=(BlueprintThreadSafe))
 	static TArray<bool> IndexesToBoolArray(const TArray<int> array);
 
 	// Convert an index to integer flag.
-	UFUNCTION(BlueprintCallable, Category = "Common Toolbox | Conversions")
+	UFUNCTION(BlueprintCallable, Category = "Common Toolbox | Conversions", meta=(BlueprintThreadSafe))
 	static int IndexToFlag(const int index);
 
 #pragma endregion
@@ -80,19 +80,19 @@ class UCommonToolboxBPLibrary : public UBlueprintFunctionLibrary
 #pragma region Vectors
 
 	// Restrict a vector inside a cone defined by normal and angle in degrees.
-	UFUNCTION(BlueprintPure, Category = "Common Toolbox | Vectors")
+	UFUNCTION(BlueprintPure, Category = "Common Toolbox | Vectors", meta=(BlueprintThreadSafe))
 	static FVector VectorCone(const FVector inVector, const FVector normal, const float alphaAngle = 90);
 
 	// Check if a vector is inside a cone defined by normal and angle in degrees.
-	UFUNCTION(BlueprintPure, Category = "Common Toolbox | Vectors")
+	UFUNCTION(BlueprintPure, Category = "Common Toolbox | Vectors", meta=(BlueprintThreadSafe))
 	static bool IsVectorCone(const FVector inVector, const FVector normal, const float alphaAngle = 90);
-	
+
 	// Project a 2D axis into 3D space using a transform. (transform.Fwd * input.Y & transform.Right * input.X)
-	UFUNCTION(BlueprintCallable, Category = "Common Toolbox | Vectors", meta=(AdvancedDisplay=2))
+	UFUNCTION(BlueprintCallable, Category = "Common Toolbox | Vectors", meta=(AdvancedDisplay=2, BlueprintThreadSafe))
 	static FVector Project2DInputs(FVector2D input, FTransform transformRelative, FVector planeNormal = FVector(0));
 
 	//Get the vector translating point to surface impact point along an axis if provided
-	UFUNCTION(BlueprintCallable, Category = "Common Toolbox | Vectors")
+	UFUNCTION(BlueprintCallable, Category = "Common Toolbox | Vectors", meta=(BlueprintThreadSafe))
 	static FVector GetSnapOnSurfaceVector(const FVector point, const FHitResult surface, const FVector axis);
 
 #pragma endregion
@@ -131,9 +131,9 @@ class UCommonToolboxBPLibrary : public UBlueprintFunctionLibrary
 #pragma region Debug
 
 	// Draw a debug circle at the hit point on a surface.
-	UFUNCTION(BlueprintCallable, Category = "Common Toolbox | Debug", meta=(AdvancedDisplay=1))
+	UFUNCTION(BlueprintCallable, Category = "Common Toolbox | Debug", meta=(AdvancedDisplay=1, NotBlueprintThreadSafe))
 	static void DrawDebugCircleOnHit(const FHitResult MyStructRef, float radius = 40, FLinearColor color = FLinearColor::White, float duration = 0, float thickness = 1,
-									 bool showImpactAxis = false);
-	
+	                                 bool showImpactAxis = false);
+
 #pragma endregion
 };
