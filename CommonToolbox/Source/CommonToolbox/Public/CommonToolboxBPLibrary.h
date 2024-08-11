@@ -26,9 +26,10 @@
 *	https://wiki.unrealengine.com/Custom_Blueprint_Node_Creation
 */
 UCLASS()
-class UCommonToolboxBPLibrary : public UBlueprintFunctionLibrary
+class COMMONTOOLBOX_API UCommonToolboxBPLibrary : public UBlueprintFunctionLibrary
 {
 	GENERATED_UCLASS_BODY()
+
 #pragma region Maths
 
 
