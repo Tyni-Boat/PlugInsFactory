@@ -29,8 +29,8 @@ UCLASS()
 class UCommonToolboxBPLibrary : public UBlueprintFunctionLibrary
 {
 	GENERATED_UCLASS_BODY()
-#pragma region Maths
 
+#pragma region Maths
 
 	// Check if value is in range (rangeX <= Value < rangeY). if range is invalid (rangeX >= rangeY) return invalidDefault
 	UFUNCTION(BlueprintPure, Category = "Common Toolbox | Math", meta=(BlueprintThreadSafe))

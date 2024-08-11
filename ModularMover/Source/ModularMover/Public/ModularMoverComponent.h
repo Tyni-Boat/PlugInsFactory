@@ -4,9 +4,11 @@
 
 #include "CoreMinimal.h"
 #include "PhysicsPublic.h"
+#include "TypesLibrary.h"
 #include "Components/ActorComponent.h"
 #include "GameFramework/MovementComponent.h"
 #include "ModularMoverComponent.generated.h"
+
 
 UCLASS(ClassGroup = "Controllers",
 	hidecategories = (Sockets, Object, LOD, Lighting, TextureStreaming, Velocity
@@ -24,6 +26,12 @@ public:
 protected:
 	// Called when the game starts
 	virtual void BeginPlay() override;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Default")
+	TSubclassOf<UBaseMoverState> stateClass;
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Default", Transient)
+	UBaseMoverState* state;
 
 public:	
 	// Called every frame

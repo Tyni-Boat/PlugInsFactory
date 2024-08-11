@@ -3,6 +3,7 @@
 
 #include "ModularMoverComponent.h"
 
+#include "Async/Async.h"
 #include "Components/PrimitiveComponent.h"
 #include "Kismet/KismetSystemLibrary.h"
 
@@ -23,11 +24,11 @@ UModularMoverComponent::UModularMoverComponent()
 void UModularMoverComponent::BeginPlay()
 {
 	Super::BeginPlay();
-	if(!UpdatedComponent)
+	if (!UpdatedComponent)
 		UpdatedComponent = GetOwner()->GetRootComponent();
-	if(UpdatedComponent)
+	if (UpdatedComponent)
 		UpdatedPrimitive = Cast<UPrimitiveComponent>(UpdatedComponent);
-	if(UpdatedPrimitive)
+	if (UpdatedPrimitive)
 	{
 		UpdatedPrimitive->SetSimulatePhysics(true);
 		UpdatedPrimitive->bIgnoreRadialForce = true;
@@ -36,6 +37,10 @@ void UModularMoverComponent::BeginPlay()
 		UpdatedPrimitive->SetUpdateKinematicFromSimulation(true);
 	}
 	// ...
+	if (stateClass)
+		state = stateClass.GetDefaultObject();
+	if (!state)
+		state = NewObject<UBaseMoverState>();
 }
 
 
@@ -54,5 +59,11 @@ void UModularMoverComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 
 void UModularMoverComponent::PhysicsTick(float DeltaTime, FBodyInstance* BodyInstance)
 {
-	UKismetSystemLibrary::PrintString(this);
+	FTransform tr = BodyInstance->GetUnrealWorldTransform_AssumesLocked();
+	FCollisionShape shape = UpdatedPrimitive->GetCollisionShape();
+	AsyncTask(ENamedThreads::BackgroundThreadPriority, [&]()
+	{
+		// Usage of CreatedObject...
+		state->TestTrace(FString::Printf(TEXT("Called from thread")), tr, shape);
+	});
 }

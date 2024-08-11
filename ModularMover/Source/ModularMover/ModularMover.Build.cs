@@ -26,6 +26,7 @@ public class ModularMover : ModuleRules
 			new string[]
 			{
 				"Core",
+				"CommonToolbox",
 				// ... add other public dependencies that you statically link with here ...
 			}
 			);
