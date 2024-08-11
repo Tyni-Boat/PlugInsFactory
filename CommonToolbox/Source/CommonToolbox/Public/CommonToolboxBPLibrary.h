@@ -26,11 +26,12 @@
 *	https://wiki.unrealengine.com/Custom_Blueprint_Node_Creation
 */
 UCLASS()
-class UCommonToolboxBPLibrary : public UBlueprintFunctionLibrary
+class COMMONTOOLBOX_API UCommonToolboxBPLibrary : public UBlueprintFunctionLibrary
 {
 	GENERATED_UCLASS_BODY()
 
 #pragma region Maths
+
 
 	// Check if value is in range (rangeX <= Value < rangeY). if range is invalid (rangeX >= rangeY) return invalidDefault
 	UFUNCTION(BlueprintPure, Category = "Common Toolbox | Math", meta=(BlueprintThreadSafe))
