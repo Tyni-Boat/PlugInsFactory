@@ -359,10 +359,103 @@ FVector UCommonToolboxBPLibrary::GetKineticEnergy(const FVector velocity, const 
 }
 
 
+bool UCommonToolboxBPLibrary::ComponentTraceMulti_internal(FCollisionShape Shape, ECollisionChannel Channel, TArray<FExpandedHitResult>& outHits, FVector position, FVector direction,
+                                                           FQuat rotation, bool traceComplex,
+                                                           FCollisionQueryParams& queryParams, ESurfaceTraceHitType offsetFilter, float PenetrationStep) const
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("ComponentTraceCastMulti");
+	if (!GetWorld())
+		return false;
+	queryParams.bTraceComplex = traceComplex;
+	queryParams.bReturnPhysicalMaterial = true;
+	const auto shape = Shape;
+	const auto channel = Channel;
+	FCollisionResponseParams response = FCollisionResponseParams::DefaultResponseParam;
+	response.CollisionResponse.SetAllChannels(ECollisionResponse::ECR_Block);
+
+	constexpr int maxIterations = 64;
+	TArray<FHitResult> loopHits;
+	const FVector endPoint = position + direction;
+	FCollisionQueryParams loopQueryParams = queryParams;
+	for (int i = 0; i < maxIterations; i++)
+	{
+		const bool result = GetWorld()->SweepMultiByChannel(loopHits, position, endPoint, rotation, channel, shape, loopQueryParams);
+		for (int j = 0; j < loopHits.Num(); j++)
+		{
+			auto queryType = loopHits[j].Component->GetCollisionResponseToChannel(channel);
+			outHits.Add(FExpandedHitResult(loopHits[j], queryType));
+			ESurfaceTraceHitType _offset = ESurfaceTraceHitType::NormalHit;
+			const float abs_penetrationStep = FMath::Abs(PenetrationStep);
+			FVector penetrationIniLocation = loopHits[j].ImpactPoint;
+			FVector awayOffset = FVector::VectorPlaneProject(loopHits[j].ImpactPoint - position, direction.GetSafeNormal());
+
+			if (queryType == ECR_Block && direction.SquaredLength() > 0)
+			{
+				const auto respParam = FCollisionResponseParams::DefaultResponseParam;
+				const auto objParam = FCollisionObjectQueryParams::DefaultObjectQueryParam;
+
+				//Inward chk
+				if (_offset == ESurfaceTraceHitType::NormalHit && (offsetFilter == ESurfaceTraceHitType::InnerHit || offsetFilter == ESurfaceTraceHitType::MAX))
+				{
+					FHitResult inwardHit;
+					FVector pt = loopHits[j].ImpactPoint - awayOffset.GetSafeNormal() * 0.125;
+					if (loopHits[j].GetComponent()->LineTraceComponent(inwardHit, pt, pt + direction, channel, loopQueryParams, respParam, objParam))
+					{
+						_offset = ESurfaceTraceHitType::InnerHit;
+						penetrationIniLocation = inwardHit.ImpactPoint;
+						outHits.Add(FExpandedHitResult(inwardHit, queryType, _offset));
+					}
+				}
+
+				//Outward chk
+				if (_offset == ESurfaceTraceHitType::NormalHit && (offsetFilter == ESurfaceTraceHitType::OuterHit || offsetFilter == ESurfaceTraceHitType::MAX))
+				{
+					FHitResult outwardHit;
+					FVector pt = loopHits[j].ImpactPoint + awayOffset.GetSafeNormal() * 0.125;
+					if (loopHits[j].GetComponent()->LineTraceComponent(outwardHit, pt, pt + direction, channel, loopQueryParams, respParam, objParam))
+					{
+						_offset = ESurfaceTraceHitType::OuterHit;
+						penetrationIniLocation = outwardHit.ImpactPoint;
+						outHits.Add(FExpandedHitResult(outwardHit, queryType, _offset));
+					}
+				}
+
+				if (abs_penetrationStep > 0)
+				{
+					int maxSubSurfaceHit = 5;
+					FVector penetrationPt = penetrationIniLocation + direction.GetSafeNormal() * abs_penetrationStep;
+					FHitResult deepHit;
+					while (loopHits[j].GetComponent()->LineTraceComponent(deepHit, penetrationPt, penetrationPt + direction, channel, loopQueryParams, respParam, objParam))
+					{
+						if (deepHit.Distance < abs_penetrationStep)
+							break;
+						if (!deepHit.bStartPenetrating)
+						{
+							outHits.Add(FExpandedHitResult(deepHit, queryType, _offset, deepHit.Distance + (penetrationPt - penetrationIniLocation).Length()));
+						}
+						penetrationPt += direction.GetSafeNormal() * FMath::Max(abs_penetrationStep, deepHit.Distance);
+						maxSubSurfaceHit--;
+						if (maxSubSurfaceHit <= 0)
+							break;
+					}
+				}
+			}
+			loopQueryParams.AddIgnoredComponent(loopHits[j].GetComponent());
+		}
+
+		if (!result)
+			break;
+	}
+	queryParams.ClearIgnoredActors();
+
+	return outHits.Num() > 0;
+}
+
 #pragma endregion
 
 
 #pragma region Debug
+
 
 void UCommonToolboxBPLibrary::DrawDebugCircleOnHit(const FHitResult MyStructRef, float radius, FLinearColor color, float duration, float thickness, bool showImpactAxis)
 {

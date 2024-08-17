@@ -8,28 +8,56 @@
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "CommonToolboxBPLibrary.generated.h"
 
-/* 
-*	Function library class.
-*	Each function in it is expected to be static and represents blueprint node that can be called in any blueprint.
-*
-*	When declaring function you can define metadata for the node. Key function specifiers will be BlueprintPure and BlueprintCallable.
-*	BlueprintPure - means the function does not affect the owning object in any way and thus creates a node without Exec pins.
-*	BlueprintCallable - makes a function which can be executed in Blueprints - Thus it has Exec pins.
-*	DisplayName - full name of the node, shown when you mouse over the node and in the blueprint drop down menu.
-*				Its lets you name the node using characters not allowed in C++ function names.
-*	CompactNodeTitle - the word(s) that appear on the node.
-*	Keywords -	the list of keywords that helps you to find node when you search for it using Blueprint drop-down menu. 
-*				Good example is "Print String" node which you can find also by using keyword "log".
-*	Category -	the category your node will be under in the Blueprint drop-down menu.
-*
-*	For more info on custom blueprint nodes visit documentation:
-*	https://wiki.unrealengine.com/Custom_Blueprint_Node_Creation
-*/
+
+UENUM(BlueprintType)
+enum class ESurfaceTraceHitType : uint8
+{
+	NormalHit,
+	InnerHit,
+	//The surface impact is offset inward the shape used to trace. 
+	OuterHit,
+	//The surface impact is offset outward the shape used to trace.
+	MAX,
+	// Used to filter. to say take all of them.
+};
+
+
+// A hit result hit some augmented properties.
+USTRUCT(BlueprintType)
+struct COMMONTOOLBOX_API FExpandedHitResult
+{
+	GENERATED_BODY()
+
+	FORCEINLINE FExpandedHitResult(FHitResult Hit, ECollisionResponse Response, ESurfaceTraceHitType Offset = ESurfaceTraceHitType::NormalHit, float depth = 0)
+	{
+		HitResult = Hit;
+		CollisionResponse = Response;
+		OffsetType = Offset;
+		SurfaceTraceDepth = depth;
+	}
+
+	// The actual hit result
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Extend")
+	FHitResult HitResult = FHitResult();
+
+	// The collision response from the channel traced from
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Extend")
+	ECollisionResponse CollisionResponse = ECR_Ignore;
+
+	// The type of the offset of this trace.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Extend")
+	ESurfaceTraceHitType OffsetType = ESurfaceTraceHitType::NormalHit;
+
+	// How far did we "dig" to get this surface
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Extend")
+	float SurfaceTraceDepth = 0;
+};
+
+
 UCLASS()
 class COMMONTOOLBOX_API UCommonToolboxBPLibrary : public UBlueprintFunctionLibrary
 {
 	GENERATED_UCLASS_BODY()
-
 #pragma region Maths
 
 
@@ -126,6 +154,20 @@ class COMMONTOOLBOX_API UCommonToolboxBPLibrary : public UBlueprintFunctionLibra
 	// Get the Kinetic Energy of a body of mass (Kg), traveling at velocity. Set distance travelled to get the force.
 	UFUNCTION(BlueprintCallable, Category = "Common Toolbox | Physic")
 	static FVector GetKineticEnergy(const FVector velocity, const float mass, const double distanceTraveled = 1);
+
+
+	/// Check for all collisions at a position and rotation in a direction as overlaps. return true if any collision occurs
+	UFUNCTION(BlueprintCallable, Category = "Common Toolbox | Physic")
+	FORCEINLINE bool ComponentTraceMulti(FCollisionShape Shape, ECollisionChannel Channel, TArray<FExpandedHitResult>& outHits, FVector position, FVector direction, FQuat rotation,
+	                                     bool traceComplex = false, ESurfaceTraceHitType offsetFilter = ESurfaceTraceHitType::MAX)
+	{
+		return ComponentTraceMulti_internal(Shape, Channel, outHits, position, direction, rotation, traceComplex, FCollisionQueryParams::DefaultQueryParam, offsetFilter);
+	}
+
+	bool ComponentTraceMulti_internal(FCollisionShape Shape, ECollisionChannel Channel, TArray<FExpandedHitResult>& outHits, FVector position, FVector direction, FQuat rotation,
+	                                  bool traceComplex = false, FCollisionQueryParams& queryParams = FCollisionQueryParams::DefaultQueryParam,
+	                                  ESurfaceTraceHitType offsetFilter = ESurfaceTraceHitType::MAX, float PenetrationStep = 0) const;
+
 
 #pragma endregion
 
