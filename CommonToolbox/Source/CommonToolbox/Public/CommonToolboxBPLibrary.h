@@ -168,9 +168,12 @@ class COMMONTOOLBOX_API UCommonToolboxBPLibrary : public UBlueprintFunctionLibra
 	                                            bool traceComplex = false, ESurfaceTraceHitType offsetFilter = ESurfaceTraceHitType::MAX)
 	{
 		if (Primitive)
+		{
+			FCollisionQueryParams queryParams = FCollisionQueryParams::DefaultQueryParam;
+			queryParams.AddIgnoredActor(Primitive->GetOwner());
 			return ComponentTraceMulti_internal(Primitive->GetWorld(), Primitive ? Primitive->GetCollisionShape(0) : FCollisionShape::MakeSphere(1), Channel, outHits, position, direction,
-			                                    rotation, traceComplex,
-			                                    FCollisionQueryParams::DefaultQueryParam, offsetFilter);
+			                                    rotation, traceComplex, queryParams, offsetFilter);
+		}
 		return false;
 	}
 
