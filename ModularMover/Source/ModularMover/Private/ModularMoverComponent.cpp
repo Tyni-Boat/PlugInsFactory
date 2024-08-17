@@ -67,10 +67,10 @@ void UModularMoverComponent::AsyncPhysicsTickComponent(float DeltaTime, float Si
 			                                  , FColor::Red, 0, "ModeName");
 			for (int i = 0; i < 500; i++)
 			{
-				FTransform tr = BodyInstance->GetUnrealWorldTransform_AssumesLocked();
-				FCollisionShape shape = UpdatedPrimitive->GetCollisionShape();
-				UWorld* World = GetWorld();
-				state->TestTrace(World, FString::Printf(TEXT("Called from thread")), tr, shape);
+				// FTransform tr = BodyInstance->GetUnrealWorldTransform_AssumesLocked();
+				// FCollisionShape shape = UpdatedPrimitive->GetCollisionShape();
+				// UWorld* World = GetWorld();
+				// state->TestTrace(World, FString::Printf(TEXT("Called from thread")), tr, shape);
 			}
 		}
 	}
