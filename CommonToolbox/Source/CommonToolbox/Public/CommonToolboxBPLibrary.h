@@ -163,7 +163,7 @@ class COMMONTOOLBOX_API UCommonToolboxBPLibrary : public UBlueprintFunctionLibra
 
 	/// Check for all collisions at a position and rotation in a direction as overlaps. return true if any collision occurs
 	UFUNCTION(BlueprintCallable, Category = "Common Toolbox | Physic")
-	FORCEINLINE static bool ComponentTraceMulti(UPrimitiveComponent* Primitive, ECollisionChannel Channel, TArray<FExpandedHitResult>& outHits, FVector position, FVector direction,
+	static FORCEINLINE bool ComponentTraceMulti(UPrimitiveComponent* Primitive, ECollisionChannel Channel, TArray<FExpandedHitResult>& outHits, FVector position, FVector direction,
 	                                            FQuat rotation,
 	                                            bool traceComplex = false, ESurfaceTraceHitType offsetFilter = ESurfaceTraceHitType::MAX)
 	{
