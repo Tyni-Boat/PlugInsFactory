@@ -29,8 +29,10 @@ struct COMMONTOOLBOX_API FExpandedHitResult
 {
 	GENERATED_BODY()
 
-	FORCEINLINE FExpandedHitResult(){}
-	
+	FORCEINLINE FExpandedHitResult()
+	{
+	}
+
 	FORCEINLINE FExpandedHitResult(FHitResult Hit, ECollisionResponse Response, ESurfaceTraceHitType Offset = ESurfaceTraceHitType::NormalHit, float depth = 0)
 	{
 		HitResult = Hit;
@@ -161,16 +163,21 @@ class COMMONTOOLBOX_API UCommonToolboxBPLibrary : public UBlueprintFunctionLibra
 
 	/// Check for all collisions at a position and rotation in a direction as overlaps. return true if any collision occurs
 	UFUNCTION(BlueprintCallable, Category = "Common Toolbox | Physic")
-	FORCEINLINE bool ComponentTraceMulti(UPrimitiveComponent* Primitive, ECollisionChannel Channel, TArray<FExpandedHitResult>& outHits, FVector position, FVector direction, FQuat rotation,
-	                                     bool traceComplex = false, ESurfaceTraceHitType offsetFilter = ESurfaceTraceHitType::MAX)
+	FORCEINLINE static bool ComponentTraceMulti(UPrimitiveComponent* Primitive, ECollisionChannel Channel, TArray<FExpandedHitResult>& outHits, FVector position, FVector direction,
+	                                            FQuat rotation,
+	                                            bool traceComplex = false, ESurfaceTraceHitType offsetFilter = ESurfaceTraceHitType::MAX)
 	{
-		return ComponentTraceMulti_internal(Primitive ? Primitive->GetCollisionShape(0) : FCollisionShape::MakeSphere(1), Channel, outHits, position, direction, rotation, traceComplex,
-		                                    FCollisionQueryParams::DefaultQueryParam, offsetFilter);
+		if (Primitive)
+			return ComponentTraceMulti_internal(Primitive->GetWorld(), Primitive ? Primitive->GetCollisionShape(0) : FCollisionShape::MakeSphere(1), Channel, outHits, position, direction,
+			                                    rotation, traceComplex,
+			                                    FCollisionQueryParams::DefaultQueryParam, offsetFilter);
+		return false;
 	}
 
-	bool ComponentTraceMulti_internal(FCollisionShape Shape, ECollisionChannel Channel, TArray<FExpandedHitResult>& outHits, FVector position, FVector direction, FQuat rotation,
-	                                  bool traceComplex = false, FCollisionQueryParams& queryParams = FCollisionQueryParams::DefaultQueryParam,
-	                                  ESurfaceTraceHitType offsetFilter = ESurfaceTraceHitType::MAX, float PenetrationStep = 0) const;
+	static bool ComponentTraceMulti_internal(UWorld* world, FCollisionShape Shape, ECollisionChannel Channel, TArray<FExpandedHitResult>& outHits, FVector position, FVector direction,
+	                                         FQuat rotation,
+	                                         bool traceComplex = false, FCollisionQueryParams& queryParams = FCollisionQueryParams::DefaultQueryParam,
+	                                         ESurfaceTraceHitType offsetFilter = ESurfaceTraceHitType::MAX, float PenetrationStep = 0);
 
 
 #pragma endregion
