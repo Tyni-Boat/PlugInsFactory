@@ -359,12 +359,12 @@ FVector UCommonToolboxBPLibrary::GetKineticEnergy(const FVector velocity, const 
 }
 
 
-bool UCommonToolboxBPLibrary::ComponentTraceMulti_internal(FCollisionShape Shape, ECollisionChannel Channel, TArray<FExpandedHitResult>& outHits, FVector position, FVector direction,
+bool UCommonToolboxBPLibrary::ComponentTraceMulti_internal(UWorld* world, FCollisionShape Shape, ECollisionChannel Channel, TArray<FExpandedHitResult>& outHits, FVector position, FVector direction,
                                                            FQuat rotation, bool traceComplex,
-                                                           FCollisionQueryParams& queryParams, ESurfaceTraceHitType offsetFilter, float PenetrationStep) const
+                                                           FCollisionQueryParams& queryParams, ESurfaceTraceHitType offsetFilter, float PenetrationStep)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("ComponentTraceCastMulti");
-	if (!GetWorld())
+	if (!world)
 		return false;
 	queryParams.bTraceComplex = traceComplex;
 	queryParams.bReturnPhysicalMaterial = true;
@@ -379,7 +379,7 @@ bool UCommonToolboxBPLibrary::ComponentTraceMulti_internal(FCollisionShape Shape
 	FCollisionQueryParams loopQueryParams = queryParams;
 	for (int i = 0; i < maxIterations; i++)
 	{
-		const bool result = GetWorld()->SweepMultiByChannel(loopHits, position, endPoint, rotation, channel, shape, loopQueryParams);
+		const bool result = world->SweepMultiByChannel(loopHits, position, endPoint, rotation, channel, shape, loopQueryParams);
 		for (int j = 0; j < loopHits.Num(); j++)
 		{
 			auto queryType = loopHits[j].Component->GetCollisionResponseToChannel(channel);
