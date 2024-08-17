@@ -4,7 +4,7 @@
 	"VersionName": "1.0",
 	"FriendlyName": "ModularMover",
 	"Description": "A modular mover component",
-	"Category": "CodePlugins",
+	"Category": "CodePlugin",
 	"CreatedBy": "TyniBoat",
 	"CreatedByURL": "",
 	"DocsURL": "",

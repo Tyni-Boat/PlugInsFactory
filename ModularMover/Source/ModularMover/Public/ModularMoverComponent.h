@@ -28,17 +28,18 @@ protected:
 	virtual void BeginPlay() override;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Default")
-	TSubclassOf<UBaseMoverState> stateClass;
+	TSubclassOf<UBaseMoverMovementMode> stateClass;
 	
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Default", Transient)
-	UBaseMoverState* state;
+	UBaseMoverMovementMode* state;
 
 public:	
 	// Called every frame
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 	
+	virtual void AsyncPhysicsTickComponent(float DeltaTime, float SimTime) override;
+	
 	// Custom physics Delegate
-	FCalculateCustomPhysics OnCalculateCustomPhysics;
-	void PhysicsTick(float DeltaTime, FBodyInstance* BodyInstance);
+	//void PhysicsTick(FPhysScene_Chaos* physicScene, float DeltaTime);
 		
 };

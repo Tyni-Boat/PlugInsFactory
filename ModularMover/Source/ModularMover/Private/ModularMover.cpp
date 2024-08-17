@@ -9,12 +9,12 @@
 void FModularMoverModule::StartupModule()
 {
 	// This code will execute after your module is loaded into memory; the exact timing is specified in the .uplugin file per-module
-	UPhysicsSettings * PhysSetting = UPhysicsSettings::Get();
-	if(PhysSetting)
-	{
-		PhysSetting->bSubstepping = true;
-		PhysSetting->bSubsteppingAsync = true;
-	}
+	// UPhysicsSettings * PhysSetting = UPhysicsSettings::Get();
+	// if(PhysSetting)
+	// {
+	// 	PhysSetting->bSubstepping = true;
+	// 	PhysSetting->bSubsteppingAsync = true;
+	// }
 }
 
 void FModularMoverModule::ShutdownModule()
