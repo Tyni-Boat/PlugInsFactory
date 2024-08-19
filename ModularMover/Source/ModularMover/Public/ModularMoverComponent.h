@@ -10,6 +10,11 @@
 #include "ModularMoverComponent.generated.h"
 
 
+
+DECLARE_DELEGATE_OneParam(FOnMoveDelegate, FVector)
+
+
+
 UCLASS(ClassGroup = "Controllers",
 	hidecategories = (Sockets, Object, LOD, Lighting, TextureStreaming, Velocity
 		, PlanarMovement, ComponentTick, ComponentReplication, MovementComponent
@@ -38,8 +43,17 @@ public:
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 	
 	virtual void AsyncPhysicsTickComponent(float DeltaTime, float SimTime) override;
-	
-	// Custom physics Delegate
-	//void PhysicsTick(FPhysScene_Chaos* physicScene, float DeltaTime);
+
+
+#pragma region Physic
+
+
+#pragma endregion 
+
+#pragma region Flow Mode
+
+	// Stand alone mode
+
+#pragma endregion 
 		
 };
