@@ -13,9 +13,68 @@
 
 #pragma region Enums
 
+UENUM(BlueprintType)
+enum class EDebugMode: uint8
+{
+	None,
+	Spacial,
+	SurfaceDetection,
+};
+
 #pragma endregion
 
 #pragma region Structs
+
+class UModularMoverComponent;
+
+USTRUCT(BlueprintType)
+struct FChunkAreaID
+{
+	GENERATED_BODY()
+
+public:
+	FORCEINLINE FChunkAreaID()
+	{
+	}
+
+	FORCEINLINE FChunkAreaID(int x, int y, int z)
+	{
+		X = x;
+		Y = y;
+		Z = z;
+	}
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="MoverChunk")
+	int X = 0;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="MoverChunk")
+	int Y = 0;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="MoverChunk")
+	int Z = 0;
+
+	FORCEINLINE bool Equals(const FChunkAreaID& other) const { return other.X == X && other.Y == Y && other.Z == Z; }
+
+	FORCEINLINE bool operator==(const FChunkAreaID& other) const { return Equals(other); }
+
+	FORCEINLINE bool operator!=(const FChunkAreaID& other) const { return !Equals(other); }
+};
+
+
+FORCEINLINE uint32 GetTypeHash(const FChunkAreaID& ChunkAreaID)
+{
+	uint32 Hash = FCrc::MemCrc32(&ChunkAreaID, sizeof(FChunkAreaID));
+	return Hash;
+}
+
+
+USTRUCT(BlueprintType)
+struct FMoverAreaChunk
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="MoverChunk")
+	TArray<UModularMoverComponent*> Movers;
+};
 
 
 USTRUCT(BlueprintType)

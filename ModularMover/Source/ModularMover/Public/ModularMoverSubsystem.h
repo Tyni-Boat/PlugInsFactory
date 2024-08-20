@@ -3,42 +3,13 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "TypesLibrary.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "ModularMoverSubsystem.generated.h"
 
 class UModularMoverComponent;
 
-
-USTRUCT(BlueprintType)
-struct FChunkAreaID
-{
-	GENERATED_BODY()
-
-public:
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="MoverChunk")
-	int X = 0;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="MoverChunk")
-	int Y = 0;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="MoverChunk")
-	int Z = 0;
-
-	FORCEINLINE bool Equals(const FChunkAreaID& other) const { return other.X == X && other.Y == Y && other.Z == Z; }
-
-	FORCEINLINE bool operator==(const FChunkAreaID& other) const { return Equals(other); }
-	
-	FORCEINLINE bool operator!=(const FChunkAreaID& other) const { return !Equals(other); }
-};
-
-
-USTRUCT(BlueprintType)
-struct FMoverAreaChunk
-{
-	GENERATED_BODY()
-
-public:
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="MoverChunk")
-	TArray<UModularMoverComponent*> Movers;
-};
+#define MOVER_CHUNK_SIZE 1000.0f
 
 
 /**
@@ -57,9 +28,17 @@ private:
 	TMap<FChunkAreaID, FMoverAreaChunk> _areaChunks;
 
 public:
-
 	void RegisterComponent(UModularMoverComponent* mover);
 
-	void UpdateChunk(UModularMoverComponent* mover, FVector newLocation);
-	
+	void UnRegisterComponent(UModularMoverComponent* mover);
+
+	void UpdateChunk(UModularMoverComponent* mover, FTransform newTransform);
+
+	void Initialize(FSubsystemCollectionBase& Collection) override;
+
+	void Deinitialize() override;
+
+	void Tick(float DeltaTime) override;
+
+	TStatId GetStatId() const override;
 };
