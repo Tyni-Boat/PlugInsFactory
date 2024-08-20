@@ -166,14 +166,14 @@ class COMMONTOOLBOX_API UCommonToolboxBPLibrary : public UBlueprintFunctionLibra
 	UFUNCTION(BlueprintCallable, Category = "Common Toolbox | Physic")
 	static FORCEINLINE bool ComponentTraceMulti(UPrimitiveComponent* Primitive, ECollisionChannel Channel, TArray<FExpandedHitResult>& outHits, FVector position, FVector direction,
 	                                            FQuat rotation,
-	                                            bool traceComplex = false, ESurfaceTraceHitType offsetFilter = ESurfaceTraceHitType::MAX)
+	                                            bool traceComplex = false, ESurfaceTraceHitType offsetFilter = ESurfaceTraceHitType::MAX, float PenetrationCheck = 0)
 	{
 		if (Primitive)
 		{
 			FCollisionQueryParams queryParams = FCollisionQueryParams::DefaultQueryParam;
 			queryParams.AddIgnoredActor(Primitive->GetOwner());
 			return ComponentTraceMulti_internal(Primitive->GetWorld(), Primitive ? Primitive->GetCollisionShape(0) : FCollisionShape::MakeSphere(1), Channel, outHits, position, direction,
-			                                    rotation, traceComplex, queryParams, offsetFilter);
+			                                    rotation, traceComplex, queryParams, offsetFilter, PenetrationCheck);
 		}
 		return false;
 	}
