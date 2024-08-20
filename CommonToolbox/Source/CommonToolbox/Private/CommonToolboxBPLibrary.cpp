@@ -430,11 +430,11 @@ void UCommonToolboxBPLibrary::EvaluateOffsetTraces_internal(const TArray<FHitRes
 		}
 	}
 
-	if (outgoingHits.Num() > 0)
+	if (outgoingHits.Num() > 1)
 	{
 		outgoingHits.Sort([position](const FExpandedHitResult& A, const FExpandedHitResult& B)
 		{
-			return (A.HitResult.ImpactPoint - position).SquaredLength() > (B.HitResult.ImpactPoint - position).SquaredLength();
+			return (B.HitResult.ImpactPoint - position).SquaredLength() > (A.HitResult.ImpactPoint - position).SquaredLength();
 		});
 	}
 }
