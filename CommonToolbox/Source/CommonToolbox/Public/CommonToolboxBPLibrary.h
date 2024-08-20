@@ -182,6 +182,9 @@ class COMMONTOOLBOX_API UCommonToolboxBPLibrary : public UBlueprintFunctionLibra
 	                                         bool traceComplex = false, FCollisionQueryParams& queryParams = FCollisionQueryParams::DefaultQueryParam,
 	                                         ESurfaceTraceHitType offsetFilter = ESurfaceTraceHitType::MAX, float PenetrationStep = 0);
 
+	static FTraceHandle AsyncComponentTraceMulti_internal(UWorld* world, FCollisionShape Shape, ECollisionChannel Channel, FVector position, FVector direction, FQuat rotation, FTraceDelegate* Result, bool traceComplex = false
+	, FCollisionQueryParams& queryParams = FCollisionQueryParams::DefaultQueryParam, ESurfaceTraceHitType offsetFilter = ESurfaceTraceHitType::MAX, float PenetrationStep = 0);
+
 
 #pragma endregion
 
