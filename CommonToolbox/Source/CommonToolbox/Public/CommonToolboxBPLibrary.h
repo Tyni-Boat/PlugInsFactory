@@ -59,7 +59,6 @@ struct COMMONTOOLBOX_API FExpandedHitResult
 };
 
 
-
 UCLASS()
 class COMMONTOOLBOX_API UCommonToolboxBPLibrary : public UBlueprintFunctionLibrary
 {
@@ -163,7 +162,7 @@ class COMMONTOOLBOX_API UCommonToolboxBPLibrary : public UBlueprintFunctionLibra
 
 
 	/// Check for all collisions at a position and rotation in a direction as overlaps. return true if any collision occurs
-	UFUNCTION(BlueprintCallable, Category = "Common Toolbox | Physic")
+	UFUNCTION(BlueprintCallable, Category = "Common Toolbox | Physic", meta=(AdvancedDisplay = 6))
 	static FORCEINLINE bool ComponentTraceMulti(UPrimitiveComponent* Primitive, ECollisionChannel Channel, TArray<FExpandedHitResult>& outHits, FVector position, FVector direction,
 	                                            FQuat rotation,
 	                                            bool traceComplex = false, ESurfaceTraceHitType offsetFilter = ESurfaceTraceHitType::MAX, float PenetrationCheck = 0)
@@ -180,8 +179,8 @@ class COMMONTOOLBOX_API UCommonToolboxBPLibrary : public UBlueprintFunctionLibra
 
 	// Convert a hit array from hit results to expanded hit results, calculating offset by the way.
 	static void EvaluateOffsetTraces_internal(const TArray<FHitResult> IncomingHits, UPARAM(ref) TArray<FExpandedHitResult>& outgoingHits, ECollisionChannel Channel,
-	                                 FCollisionQueryParams& queryParams = FCollisionQueryParams::DefaultQueryParam, ESurfaceTraceHitType offsetFilter = ESurfaceTraceHitType::MAX,
-	                                 float PenetrationStep = 0);
+	                                          FCollisionQueryParams& queryParams = FCollisionQueryParams::DefaultQueryParam, ESurfaceTraceHitType offsetFilter = ESurfaceTraceHitType::MAX,
+	                                          float PenetrationStep = 0);
 
 	static bool ComponentTraceMulti_internal(UWorld* world, FCollisionShape Shape, ECollisionChannel Channel, TArray<FExpandedHitResult>& outHits, FVector position, FVector direction,
 	                                         FQuat rotation,
