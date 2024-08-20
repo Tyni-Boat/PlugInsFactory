@@ -429,6 +429,14 @@ void UCommonToolboxBPLibrary::EvaluateOffsetTraces_internal(const TArray<FHitRes
 			}
 		}
 	}
+
+	if (outgoingHits.Num() > 0)
+	{
+		outgoingHits.Sort([position](const FExpandedHitResult& A, const FExpandedHitResult& B)
+		{
+			return (A.HitResult.ImpactPoint - position).SquaredLength() > (B.HitResult.ImpactPoint - position).SquaredLength();
+		});
+	}
 }
 
 bool UCommonToolboxBPLibrary::ComponentTraceMulti_internal(UWorld* world, FCollisionShape Shape, ECollisionChannel Channel, TArray<FExpandedHitResult>& outHits, FVector position,
