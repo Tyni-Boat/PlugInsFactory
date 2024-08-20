@@ -59,6 +59,7 @@ struct COMMONTOOLBOX_API FExpandedHitResult
 };
 
 
+
 UCLASS()
 class COMMONTOOLBOX_API UCommonToolboxBPLibrary : public UBlueprintFunctionLibrary
 {
@@ -177,13 +178,19 @@ class COMMONTOOLBOX_API UCommonToolboxBPLibrary : public UBlueprintFunctionLibra
 		return false;
 	}
 
+	// Convert a hit array from hit results to expanded hit results, calculating offset by the way.
+	static void EvaluateOffsetTraces_internal(const TArray<FHitResult> IncomingHits, UPARAM(ref) TArray<FExpandedHitResult>& outgoingHits, ECollisionChannel Channel,
+	                                 FCollisionQueryParams& queryParams = FCollisionQueryParams::DefaultQueryParam, ESurfaceTraceHitType offsetFilter = ESurfaceTraceHitType::MAX,
+	                                 float PenetrationStep = 0);
+
 	static bool ComponentTraceMulti_internal(UWorld* world, FCollisionShape Shape, ECollisionChannel Channel, TArray<FExpandedHitResult>& outHits, FVector position, FVector direction,
 	                                         FQuat rotation,
 	                                         bool traceComplex = false, FCollisionQueryParams& queryParams = FCollisionQueryParams::DefaultQueryParam,
 	                                         ESurfaceTraceHitType offsetFilter = ESurfaceTraceHitType::MAX, float PenetrationStep = 0);
 
-	static FTraceHandle AsyncComponentTraceMulti_internal(UWorld* world, FCollisionShape Shape, ECollisionChannel Channel, FVector position, FVector direction, FQuat rotation, FTraceDelegate* Result, bool traceComplex = false
-	, FCollisionQueryParams& queryParams = FCollisionQueryParams::DefaultQueryParam, ESurfaceTraceHitType offsetFilter = ESurfaceTraceHitType::MAX, float PenetrationStep = 0);
+	static FTraceHandle AsyncComponentTraceMulti_internal(UWorld* world, FCollisionShape Shape, FVector position, FVector direction, FQuat rotation,
+	                                                      FTraceDelegate* Result, bool traceComplex = false
+	                                                      , FCollisionQueryParams& queryParams = FCollisionQueryParams::DefaultQueryParam);
 
 
 #pragma endregion

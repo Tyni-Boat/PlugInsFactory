@@ -359,9 +359,80 @@ FVector UCommonToolboxBPLibrary::GetKineticEnergy(const FVector velocity, const 
 }
 
 
+void UCommonToolboxBPLibrary::EvaluateOffsetTraces_internal(const TArray<FHitResult> IncomingHits, TArray<FExpandedHitResult>& outgoingHits, ECollisionChannel Channel,
+                                                            FCollisionQueryParams& queryParams, ESurfaceTraceHitType offsetFilter, float PenetrationStep)
+{
+	outgoingHits.Empty();
+	if (IncomingHits.Num() <= 0)
+		return;
+	const FVector position = IncomingHits[0].TraceStart;
+	const FVector direction = (IncomingHits[0].TraceEnd - IncomingHits[0].TraceStart);
+	for (int j = 0; j < IncomingHits.Num(); j++)
+	{
+		auto queryType = IncomingHits[j].Component->GetCollisionResponseToChannel(Channel);
+		outgoingHits.Add(FExpandedHitResult(IncomingHits[j], queryType));
+		ESurfaceTraceHitType _offset = ESurfaceTraceHitType::NormalHit;
+		const float abs_penetrationStep = FMath::Abs(PenetrationStep);
+		FVector penetrationIniLocation = IncomingHits[j].ImpactPoint;
+		FVector awayOffset = FVector::VectorPlaneProject(IncomingHits[j].ImpactPoint - position, direction.GetSafeNormal());
+
+		if (queryType == ECR_Block && direction.SquaredLength() > 0)
+		{
+			const auto respParam = FCollisionResponseParams::DefaultResponseParam;
+			const auto objParam = FCollisionObjectQueryParams::DefaultObjectQueryParam;
+
+			//Inward chk
+			if (_offset == ESurfaceTraceHitType::NormalHit && (offsetFilter == ESurfaceTraceHitType::InnerHit || offsetFilter == ESurfaceTraceHitType::MAX))
+			{
+				FHitResult inwardHit;
+				FVector pt = IncomingHits[j].ImpactPoint - awayOffset.GetSafeNormal() * 0.125;
+				if (IncomingHits[j].GetComponent()->LineTraceComponent(inwardHit, pt, pt + direction, Channel, queryParams, respParam, objParam))
+				{
+					_offset = ESurfaceTraceHitType::InnerHit;
+					penetrationIniLocation = inwardHit.ImpactPoint;
+					outgoingHits.Add(FExpandedHitResult(inwardHit, queryType, _offset, inwardHit.Distance));
+				}
+			}
+
+			//Outward chk
+			if (_offset == ESurfaceTraceHitType::NormalHit && (offsetFilter == ESurfaceTraceHitType::OuterHit || offsetFilter == ESurfaceTraceHitType::MAX))
+			{
+				FHitResult outwardHit;
+				FVector pt = IncomingHits[j].ImpactPoint + awayOffset.GetSafeNormal() * 0.125;
+				if (IncomingHits[j].GetComponent()->LineTraceComponent(outwardHit, pt, pt + direction, Channel, queryParams, respParam, objParam))
+				{
+					_offset = ESurfaceTraceHitType::OuterHit;
+					penetrationIniLocation = outwardHit.ImpactPoint;
+					outgoingHits.Add(FExpandedHitResult(outwardHit, queryType, _offset, outwardHit.Distance));
+				}
+			}
+
+			if (abs_penetrationStep > 0)
+			{
+				int maxSubSurfaceHit = 10;
+				FVector penetrationPt = penetrationIniLocation + direction.GetSafeNormal() * abs_penetrationStep;
+				FHitResult deepHit;
+				while (IncomingHits[j].GetComponent()->SweepComponent(deepHit, penetrationPt, penetrationPt + direction, FQuat::Identity, FCollisionShape::MakeSphere(0.125),
+				                                                      queryParams.bTraceComplex))
+				{
+					if (deepHit.Distance < abs_penetrationStep)
+						break;
+					if (!deepHit.bStartPenetrating)
+					{
+						outgoingHits.Add(FExpandedHitResult(deepHit, queryType, _offset, deepHit.Distance + (penetrationPt - penetrationIniLocation).Length()));
+					}
+					penetrationPt += direction.GetSafeNormal() * FMath::Max(abs_penetrationStep, deepHit.Distance);
+					maxSubSurfaceHit--;
+					if (maxSubSurfaceHit <= 0)
+						break;
+				}
+			}
+		}
+	}
+}
+
 bool UCommonToolboxBPLibrary::ComponentTraceMulti_internal(UWorld* world, FCollisionShape Shape, ECollisionChannel Channel, TArray<FExpandedHitResult>& outHits, FVector position,
-                                                           FVector direction,
-                                                           FQuat rotation, bool traceComplex,
+                                                           FVector direction, FQuat rotation, bool traceComplex,
                                                            FCollisionQueryParams& queryParams, ESurfaceTraceHitType offsetFilter, float PenetrationStep)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("ComponentTraceCastMulti");
@@ -371,151 +442,14 @@ bool UCommonToolboxBPLibrary::ComponentTraceMulti_internal(UWorld* world, FColli
 	queryParams.bReturnPhysicalMaterial = true;
 	const auto shape = Shape;
 	const auto channel = Channel;
-	FCollisionResponseParams response = FCollisionResponseParams::DefaultResponseParam;
-	response.CollisionResponse.SetAllChannels(ECollisionResponse::ECR_Block);
 
 	TArray<FHitResult> loopHits;
 	const FVector endPoint = position + direction;
-
+	const FCollisionObjectQueryParams objQuery = FCollisionObjectQueryParams::AllObjects;
+	if (world->SweepMultiByObjectType(loopHits, position, endPoint, rotation, objQuery, shape, queryParams))
 	{
-		FCollisionObjectQueryParams objQuery = FCollisionObjectQueryParams::AllObjects;
-		if (world->SweepMultiByObjectType(loopHits, position, endPoint, rotation, objQuery, shape, queryParams))
-		{
-			for (int j = 0; j < loopHits.Num(); j++)
-			{
-				auto queryType = loopHits[j].Component->GetCollisionResponseToChannel(channel);
-				outHits.Add(FExpandedHitResult(loopHits[j], queryType));
-				ESurfaceTraceHitType _offset = ESurfaceTraceHitType::NormalHit;
-				const float abs_penetrationStep = FMath::Abs(PenetrationStep);
-				FVector penetrationIniLocation = loopHits[j].ImpactPoint;
-				FVector awayOffset = FVector::VectorPlaneProject(loopHits[j].ImpactPoint - position, direction.GetSafeNormal());
-
-				if (queryType == ECR_Block && direction.SquaredLength() > 0)
-				{
-					const auto respParam = FCollisionResponseParams::DefaultResponseParam;
-					const auto objParam = FCollisionObjectQueryParams::DefaultObjectQueryParam;
-
-					//Inward chk
-					if (_offset == ESurfaceTraceHitType::NormalHit && (offsetFilter == ESurfaceTraceHitType::InnerHit || offsetFilter == ESurfaceTraceHitType::MAX))
-					{
-						FHitResult inwardHit;
-						FVector pt = loopHits[j].ImpactPoint - awayOffset.GetSafeNormal() * 0.125;
-						if (loopHits[j].GetComponent()->LineTraceComponent(inwardHit, pt, pt + direction, channel, queryParams, respParam, objParam))
-						{
-							_offset = ESurfaceTraceHitType::InnerHit;
-							penetrationIniLocation = inwardHit.ImpactPoint;
-							outHits.Add(FExpandedHitResult(inwardHit, queryType, _offset));
-						}
-					}
-
-					//Outward chk
-					if (_offset == ESurfaceTraceHitType::NormalHit && (offsetFilter == ESurfaceTraceHitType::OuterHit || offsetFilter == ESurfaceTraceHitType::MAX))
-					{
-						FHitResult outwardHit;
-						FVector pt = loopHits[j].ImpactPoint + awayOffset.GetSafeNormal() * 0.125;
-						if (loopHits[j].GetComponent()->LineTraceComponent(outwardHit, pt, pt + direction, channel, queryParams, respParam, objParam))
-						{
-							_offset = ESurfaceTraceHitType::OuterHit;
-							penetrationIniLocation = outwardHit.ImpactPoint;
-							outHits.Add(FExpandedHitResult(outwardHit, queryType, _offset));
-						}
-					}
-
-					if (abs_penetrationStep > 0)
-					{
-						int maxSubSurfaceHit = 5;
-						FVector penetrationPt = penetrationIniLocation + direction.GetSafeNormal() * abs_penetrationStep;
-						FHitResult deepHit;
-						while (loopHits[j].GetComponent()->LineTraceComponent(deepHit, penetrationPt, penetrationPt + direction, channel, queryParams, respParam, objParam))
-						{
-							if (deepHit.Distance < abs_penetrationStep)
-								break;
-							if (!deepHit.bStartPenetrating)
-							{
-								outHits.Add(FExpandedHitResult(deepHit, queryType, _offset, deepHit.Distance + (penetrationPt - penetrationIniLocation).Length()));
-							}
-							penetrationPt += direction.GetSafeNormal() * FMath::Max(abs_penetrationStep, deepHit.Distance);
-							maxSubSurfaceHit--;
-							if (maxSubSurfaceHit <= 0)
-								break;
-						}
-					}
-				}
-			}
-		}
+		EvaluateOffsetTraces_internal(loopHits, outHits, channel, queryParams, offsetFilter, PenetrationStep);
 	}
-	//
-	// constexpr int maxIterations = 64;
-	// FCollisionQueryParams loopQueryParams = queryParams;
-	// for (int i = 0; i < maxIterations; i++)
-	// {
-	// 	const bool result = world->SweepMultiByChannel(loopHits, position, endPoint, rotation, channel, shape, loopQueryParams);
-	// 	for (int j = 0; j < loopHits.Num(); j++)
-	// 	{
-	// 		auto queryType = loopHits[j].Component->GetCollisionResponseToChannel(channel);
-	// 		outHits.Add(FExpandedHitResult(loopHits[j], queryType));
-	// 		ESurfaceTraceHitType _offset = ESurfaceTraceHitType::NormalHit;
-	// 		const float abs_penetrationStep = FMath::Abs(PenetrationStep);
-	// 		FVector penetrationIniLocation = loopHits[j].ImpactPoint;
-	// 		FVector awayOffset = FVector::VectorPlaneProject(loopHits[j].ImpactPoint - position, direction.GetSafeNormal());
-	//
-	// 		if (queryType == ECR_Block && direction.SquaredLength() > 0)
-	// 		{
-	// 			const auto respParam = FCollisionResponseParams::DefaultResponseParam;
-	// 			const auto objParam = FCollisionObjectQueryParams::DefaultObjectQueryParam;
-	//
-	// 			//Inward chk
-	// 			if (_offset == ESurfaceTraceHitType::NormalHit && (offsetFilter == ESurfaceTraceHitType::InnerHit || offsetFilter == ESurfaceTraceHitType::MAX))
-	// 			{
-	// 				FHitResult inwardHit;
-	// 				FVector pt = loopHits[j].ImpactPoint - awayOffset.GetSafeNormal() * 0.125;
-	// 				if (loopHits[j].GetComponent()->LineTraceComponent(inwardHit, pt, pt + direction, channel, loopQueryParams, respParam, objParam))
-	// 				{
-	// 					_offset = ESurfaceTraceHitType::InnerHit;
-	// 					penetrationIniLocation = inwardHit.ImpactPoint;
-	// 					outHits.Add(FExpandedHitResult(inwardHit, queryType, _offset));
-	// 				}
-	// 			}
-	//
-	// 			//Outward chk
-	// 			if (_offset == ESurfaceTraceHitType::NormalHit && (offsetFilter == ESurfaceTraceHitType::OuterHit || offsetFilter == ESurfaceTraceHitType::MAX))
-	// 			{
-	// 				FHitResult outwardHit;
-	// 				FVector pt = loopHits[j].ImpactPoint + awayOffset.GetSafeNormal() * 0.125;
-	// 				if (loopHits[j].GetComponent()->LineTraceComponent(outwardHit, pt, pt + direction, channel, loopQueryParams, respParam, objParam))
-	// 				{
-	// 					_offset = ESurfaceTraceHitType::OuterHit;
-	// 					penetrationIniLocation = outwardHit.ImpactPoint;
-	// 					outHits.Add(FExpandedHitResult(outwardHit, queryType, _offset));
-	// 				}
-	// 			}
-	//
-	// 			if (abs_penetrationStep > 0)
-	// 			{
-	// 				int maxSubSurfaceHit = 5;
-	// 				FVector penetrationPt = penetrationIniLocation + direction.GetSafeNormal() * abs_penetrationStep;
-	// 				FHitResult deepHit;
-	// 				while (loopHits[j].GetComponent()->LineTraceComponent(deepHit, penetrationPt, penetrationPt + direction, channel, loopQueryParams, respParam, objParam))
-	// 				{
-	// 					if (deepHit.Distance < abs_penetrationStep)
-	// 						break;
-	// 					if (!deepHit.bStartPenetrating)
-	// 					{
-	// 						outHits.Add(FExpandedHitResult(deepHit, queryType, _offset, deepHit.Distance + (penetrationPt - penetrationIniLocation).Length()));
-	// 					}
-	// 					penetrationPt += direction.GetSafeNormal() * FMath::Max(abs_penetrationStep, deepHit.Distance);
-	// 					maxSubSurfaceHit--;
-	// 					if (maxSubSurfaceHit <= 0)
-	// 						break;
-	// 				}
-	// 			}
-	// 		}
-	// 		loopQueryParams.AddIgnoredComponent(loopHits[j].GetComponent());
-	// 	}
-	//
-	// 	if (!result)
-	// 		break;
-	// }
 
 	queryParams.ClearIgnoredActors();
 
@@ -523,12 +457,21 @@ bool UCommonToolboxBPLibrary::ComponentTraceMulti_internal(UWorld* world, FColli
 }
 
 
-FTraceHandle UCommonToolboxBPLibrary::AsyncComponentTraceMulti_internal(UWorld* world, FCollisionShape Shape, ECollisionChannel Channel, FVector position, FVector direction, FQuat rotation,
-                                                                        FTraceDelegate* Result, bool traceComplex, FCollisionQueryParams& queryParams, ESurfaceTraceHitType offsetFilter,
-                                                                        float PenetrationStep)
+FTraceHandle UCommonToolboxBPLibrary::AsyncComponentTraceMulti_internal(UWorld* world, FCollisionShape Shape, FVector position, FVector direction, FQuat rotation,
+                                                                        FTraceDelegate* Result, bool traceComplex, FCollisionQueryParams& queryParams)
 {
-	return {};
+	if (!world)
+		return {};
+	queryParams.bTraceComplex = traceComplex;
+	queryParams.bReturnPhysicalMaterial = true;
+	const auto shape = Shape;
+
+	const FVector endPoint = position + direction;
+	const FCollisionObjectQueryParams objQuery = FCollisionObjectQueryParams::AllObjects;
+	const auto handle = world->AsyncSweepByObjectType(EAsyncTraceType::Multi, position, endPoint, rotation, objQuery, shape, queryParams, Result);
+	return handle;
 }
+
 
 #pragma endregion
 
