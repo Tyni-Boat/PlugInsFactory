@@ -382,7 +382,7 @@ void UCommonToolboxBPLibrary::EvaluateOffsetTraces_internal(const TArray<FHitRes
 			const auto objParam = FCollisionObjectQueryParams::DefaultObjectQueryParam;
 
 			//Inward chk
-			if (_offset == ESurfaceTraceHitType::NormalHit && (offsetFilter == ESurfaceTraceHitType::InnerHit || offsetFilter == ESurfaceTraceHitType::MAX))
+			if (awayOffset.Length() > 0.125 && _offset == ESurfaceTraceHitType::NormalHit && (offsetFilter == ESurfaceTraceHitType::InnerHit || offsetFilter == ESurfaceTraceHitType::MAX))
 			{
 				FHitResult inwardHit;
 				FVector pt = IncomingHits[j].ImpactPoint - awayOffset.GetSafeNormal() * 0.125;
@@ -395,7 +395,7 @@ void UCommonToolboxBPLibrary::EvaluateOffsetTraces_internal(const TArray<FHitRes
 			}
 
 			//Outward chk
-			if (_offset == ESurfaceTraceHitType::NormalHit && (offsetFilter == ESurfaceTraceHitType::OuterHit || offsetFilter == ESurfaceTraceHitType::MAX))
+			if (awayOffset.Length() > 0.125 && _offset == ESurfaceTraceHitType::NormalHit && (offsetFilter == ESurfaceTraceHitType::OuterHit || offsetFilter == ESurfaceTraceHitType::MAX))
 			{
 				FHitResult outwardHit;
 				FVector pt = IncomingHits[j].ImpactPoint + awayOffset.GetSafeNormal() * 0.125;
