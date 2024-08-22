@@ -5,6 +5,7 @@
 #include <functional>
 #include "CoreMinimal.h"
 #include "ModularMoverSubsystem.h"
+#include "PhysicalMaterials/PhysicalMaterial.h"
 #include "PhysicsPublic.h"
 #include "TypesLibrary.h"
 #include "Components/ActorComponent.h"
@@ -13,6 +14,7 @@
 
 
 #define OVERLAP_INFLATION 5
+#define DRAG_To_DAMPING 2.4026
 
 
 class UModularMoverComponent;
@@ -34,6 +36,9 @@ public:
 	// Sets default values for this component's properties
 	UModularMoverComponent();
 
+	~UModularMoverComponent();
+
+
 protected:
 	// Called when the game starts
 	virtual void BeginPlay() override;
@@ -41,20 +46,23 @@ protected:
 	// Register the component to it's subsystem.
 	bool InitialRegistration();
 
+	// Unregister the component to it's subsystem.
+	bool FinalUnregistration();
+
+	// The reference to the current subsystem.
+	UModularMoverSubsystem* _subSystem = nullptr;
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Default")
 	EDebugMode DebugMode = EDebugMode::None;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Default")
-	TSubclassOf<UBaseMoverMovementMode> stateClass;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Default", Transient)
-	UBaseMoverMovementMode* state;
 
 public:
 	// Called every frame
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
 	virtual void AsyncPhysicsTickComponent(float DeltaTime, float SimTime) override;
+
+	// Evaluate continuous and instantaneous movement modes as well as Traversals
+	void EvaluateMovementSurface(const FTransform Transform, TArray<FExpandedHitResult> Surfaces);
 
 
 #pragma region Physic
@@ -79,6 +87,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, category = "Physic|Collisions")
 	bool bDisableCollision = false;
 
+	// Use asynchronous surface detection
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, category = "Physic|Collisions")
+	bool bUseAsyncSurfaceDetection = false;
+
 	// The list of components to ignore when moving.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, category = "Physic|Collisions")
 	TArray<UPrimitiveComponent*> IgnoredCollisionComponents;
@@ -95,18 +107,29 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, category = "Physic|RigidBody")
 	float Mass = 80;
 
+
 protected:
+	UPROPERTY()
+	UPhysicalMaterial* _customPhysicMaterial = nullptr;
 	FVector _lastLocation;
 	FVector _lastLocation_trigger;
 	FQuat _lastRotation;
 	FQuat _lastRotation_trigger;
+	FTraceDelegate _onMainSurfaceChk;
+	TMap<FTraceHandle, FTransform> _chkRequestMap;
 
 
 	UFUNCTION(BlueprintPure, Category="Mover|Physic")
 	bool IsIgnoringCollision() const;
 
+	UFUNCTION(BlueprintPure, Category="Mover|Physic")
+	FVector GetCurrentScanSurfaceVector() const;
+
+	UFUNCTION(BlueprintPure, Category="Mover|Physic")
+	float GetCurrentScanSurfaceOffset() const;
+
 	// Get the controller Mass
-	UFUNCTION(BlueprintPure, Category = "Controllers|Physic")
+	UFUNCTION(BlueprintPure, Category = "Mover|Physic")
 	FORCEINLINE float GetMass() const
 	{
 		return (Mass < 0 && UpdatedPrimitive != nullptr && UpdatedPrimitive->IsSimulatingPhysics()) ? UpdatedPrimitive->GetMass() : FMath::Clamp(Mass, 1, TNumericLimits<double>().Max());
@@ -118,11 +141,17 @@ protected:
 	// Run the solver when ever moved
 	void OnMoveCheck(UModularMoverComponent* Mover, FTransform Transform);
 
+	// Called when we've done the surface check trace async
+	void OnMainSurfaceCheckDone(const FTraceHandle& TraceHandle, FTraceDatum& TraceData);
+
 	//Solve overlap problems recursively.
 	void OverlapSolver(int& maxDepth, const FTransform* customTr = nullptr) const;
 
 	// Detect surface overlap hits
 	bool DetectOverlapHits(const FTransform Transform, TArray<FExpandedHitResult>& touchedHits, const FVector scanVector = FVector(0), const uint64 CounterDirectionOffset = 0) const;
+
+	// Detect surface overlap hits async
+	FTraceHandle AsyncDetectOverlapHits(const FTransform Transform, FTraceDelegate* callBack, const FVector scanVector = FVector(0), const uint64 CounterDirectionOffset = 0) const;
 
 	// De-penetrate overlaps
 	void FixOverlapHits(int& maxDepth, const FTransform Transform, const TArray<FExpandedHitResult> touchedHits, std::function<void(FVector)> OnLocationSet = {},
@@ -130,9 +159,57 @@ protected:
 
 #pragma endregion
 
+#pragma region Movement Modes
+
+	// Contingents ------------------------------------------------------------------------------------------------------------------------------------------
+
+public:
+	// The contingent move modes used on this controller by default
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, category = "Mover|Movement Modes|Contingent")
+	TArray<TSubclassOf<UBaseContingentMove>> ContingentMoveClasses;
+
+	// The states of each contingent move for this mover
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, category = "Mover|Movement Modes|Contingent")
+	TArray<FContingentMoveInfos> ContingentMoveState;
+
+	// Transients ------------------------------------------------------------------------------------------------------------------------------------------
+
+public:
+	// The Transient move modes used on this controller by default
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, category = "Mover|Movement Modes|Transient")
+	TArray<TSubclassOf<UBaseTransientMove>> TransientMoveClasses;
+
+	// The states of each Transient move for this mover
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, category = "Mover|Movement Modes|Transient")
+	TArray<FTransientMoveInfos> TransientMoveState;
+
+	// Traversal ------------------------------------------------------------------------------------------------------------------------------------------
+
+#pragma endregion
+
 #pragma region Flow Mode
 
 	// Stand alone mode
+
+#pragma endregion
+
+#pragma region Movement
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Debug")
+	float LinearScale = 0;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Debug")
+	float LinearTerminal = 100;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Debug")
+	float AngularScale = 0;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Debug")
+	float AngularTerminal = 10;
+	
+
+	// Move a body according to Movement
+	void MoveBody(FBodyInstance* Body, const FTransform BodyTransForm, const FMechanicProperties movement, const float Delta) const;
 
 #pragma endregion
 };

@@ -26,6 +26,56 @@ enum class EDebugMode: uint8
 #pragma region Structs
 
 class UModularMoverComponent;
+class UBaseMoverMovementMode;
+class UBaseContingentMove;
+class UBaseTransientMove;
+
+USTRUCT(BlueprintType)
+struct FTransientMovePhases
+{
+	GENERATED_BODY()
+
+public:
+	FORCEINLINE FTransientMovePhases()
+	{
+	}
+
+	FORCEINLINE FTransientMovePhases(FName name, float duration)
+	{
+	}
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
+	FName PhaseName = "";
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
+	float PhaseDuration = 0;
+};
+
+USTRUCT()
+struct FMoveModeReference
+{
+	GENERATED_BODY()
+
+public:
+	FORCEINLINE FMoveModeReference()
+	{
+	}
+
+	FORCEINLINE FMoveModeReference(UBaseMoverMovementMode* instance)
+	{
+		if (instance)
+		{
+			MovementModeInstance = instance;
+			ReferenceCount = 1;
+		}
+	}
+
+	UPROPERTY()
+	TSoftObjectPtr<UBaseMoverMovementMode> MovementModeInstance = nullptr;
+
+	UPROPERTY()
+	int ReferenceCount = 0;
+};
 
 USTRUCT(BlueprintType)
 struct FChunkAreaID
@@ -147,38 +197,177 @@ private:
 };
 
 
+USTRUCT(BlueprintType)
+struct FCommonMoveInfos
+{
+	GENERATED_BODY()
+
+public:
+	FCommonMoveInfos();
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Default")
+	FName ModeName = "";
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Default")
+	int Priority = 0;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Default")
+	FVector2D BlendTimes = FVector2D(0);
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Default", meta=(UIMin=0, UIMax=1, ClampMin=0, ClampMax=1))
+	float CurrentWeight = 0;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Default")
+	float TimeOnMode = 0;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Default")
+	bool bIsActiveMode = false;
+};
+
+
+USTRUCT(BlueprintType)
+struct FContingentMoveInfos
+{
+	GENERATED_BODY()
+
+public:
+	FContingentMoveInfos();
+
+	FContingentMoveInfos(UBaseContingentMove* move);
+
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Default")
+	FCommonMoveInfos BaseInfos;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Default")
+	float TotalTimeOnMode = 0;
+};
+
+
+USTRUCT(BlueprintType)
+struct FTransientMoveInfos
+{
+	GENERATED_BODY()
+
+public:
+	FTransientMoveInfos();
+
+	FTransientMoveInfos(UBaseTransientMove* move);
+
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Default")
+	FCommonMoveInfos BaseInfos;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Default")
+	TArray<FTransientMovePhases> ModeDuration = TArray<FTransientMovePhases>{FTransientMovePhases("Default", 0.1)};
+};
+
+
+USTRUCT(BlueprintType)
+struct FLinearMechanic
+{
+	GENERATED_BODY()
+
+public:
+
+	// The current force to apply, mass independent (assumed unit used is Cm no Meters)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
+	FVector Force = FVector(0);
+
+	// The terminal velocity (cm/s)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
+	float TerminalVelocity = 0;
+
+	// The drag when force or Terminal Velocity are zero
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
+	float StaticDrag = 0.564;
+};
+
+USTRUCT(BlueprintType)
+struct FAngularMechanic
+{
+	GENERATED_BODY()
+
+public:
+
+	// The current torque to apply (deg)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
+	FVector Torque = FVector(0);
+
+	// The terminal torque (deg) 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
+	float TerminalAngularVelocity = 0;
+
+	// The drag when Torque or terminal Torque are zero
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
+	float StaticDrag = 0.564;
+};
+
+USTRUCT(BlueprintType)
+struct FMechanicProperties
+{
+	GENERATED_BODY()
+
+public:
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
+	FLinearMechanic Linear = FLinearMechanic();
+ 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
+	FAngularMechanic Angular = FAngularMechanic();
+};
+
+
 #pragma endregion
 
 #pragma region Classes
 
 
 // The Modular Mover movement mode asset class.
-UCLASS(BlueprintType, Blueprintable, ClassGroup = "Mover | Movement Modes", abstract)
-class MODULARMOVER_API UBaseMoverMovementMode : public UPrimaryDataAsset
+UCLASS()
+class UBaseMoverMovementMode : public UPrimaryDataAsset
 {
 	GENERATED_BODY()
 
 public:
 	UBaseMoverMovementMode();
 
-protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Default")
 	FName ModeName = NAME_None;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Default")
 	int Priority = -1;
 
-	FTraceDelegate OnQueryEnds;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Default")
+	FVector2D BlendTimes = FVector2D(0);
 
-
-public:
 	UFUNCTION(BlueprintPure, Category="Modular Mover | Mover Movement Mode", meta = (CompactNodeTitle = "ValidState", BlueprintThreadSafe))
 	bool IsValid() const;
+};
 
-	void TestTrace(UWorld* World, FString message, FTransform tr, FCollisionShape shape) const;
+
+// The base of all contingent movement modes
+UCLASS(BlueprintType, Blueprintable, ClassGroup = "Mover | Movement Modes", abstract)
+class MODULARMOVER_API UBaseContingentMove : public UBaseMoverMovementMode
+{
+	GENERATED_BODY()
+
+public:
+	UBaseContingentMove();
+};
 
 
-	void QueryResponse(const FTraceHandle& handle, FTraceDatum& datas);
+// The base of all transient movement modes
+UCLASS(BlueprintType, Blueprintable, ClassGroup = "Mover | Movement Modes", abstract)
+class MODULARMOVER_API UBaseTransientMove : public UBaseMoverMovementMode
+{
+	GENERATED_BODY()
+
+public:
+	UBaseTransientMove();
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Timing")
+	TArray<FTransientMovePhases> ModeDuration = TArray<FTransientMovePhases>{FTransientMovePhases("Default", 0.1)};
 };
 
 #pragma endregion

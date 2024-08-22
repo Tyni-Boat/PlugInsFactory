@@ -19,7 +19,13 @@ UModularMoverComponent::UModularMoverComponent()
 	bAutoRegisterUpdatedComponent = true;
 	SetTickGroup(TG_PostPhysics);
 	SetAsyncPhysicsTickEnabled(true);
+	InitialRegistration();
 	// ...
+}
+
+UModularMoverComponent::~UModularMoverComponent()
+{
+	FinalUnregistration();
 }
 
 
@@ -27,7 +33,9 @@ UModularMoverComponent::UModularMoverComponent()
 void UModularMoverComponent::BeginPlay()
 {
 	Super::BeginPlay();
-	if (InitialRegistration())
+	if (!_subSystem)
+		InitialRegistration();
+	if (_subSystem)
 	{
 		if (!UpdatedComponent)
 			UpdatedComponent = GetOwner()->GetRootComponent();
@@ -36,22 +44,51 @@ void UModularMoverComponent::BeginPlay()
 		if (UpdatedPrimitive)
 		{
 			OnComponentMoved.AddUObject(this, &UModularMoverComponent::OnMoveCheck);
-			UpdatedPrimitive->SetSimulatePhysics(false);
+			_onMainSurfaceChk.BindUObject(this, &UModularMoverComponent::OnMainSurfaceCheckDone);
+
+			const FTransform curTr = UpdatedPrimitive->GetBodyInstance()->GetUnrealWorldTransform_AssumesLocked();
+			const FVector _curLocation = curTr.GetLocation();
+			const FQuat _curRotation = curTr.GetRotation();
+			_lastLocation = _curLocation;
+			_lastRotation = _curRotation;
+			_lastLocation_trigger = _curLocation;
+			_lastRotation_trigger = _curRotation;
+
+			UpdatedPrimitive->SetSimulatePhysics(true);
+			_customPhysicMaterial = NewObject<UPhysicalMaterial>();
+			_customPhysicMaterial->bOverrideFrictionCombineMode = true;
+			_customPhysicMaterial->bOverrideRestitutionCombineMode = true;
+			_customPhysicMaterial->Friction = 0;
+			_customPhysicMaterial->FrictionCombineMode = EFrictionCombineMode::Min;
+			_customPhysicMaterial->Restitution = 0;
+			_customPhysicMaterial->RestitutionCombineMode = EFrictionCombineMode::Min;
+			UpdatedPrimitive->SetPhysMaterialOverride(_customPhysicMaterial);
 			UpdatedPrimitive->SetEnableGravity(false);
 			UpdatedPrimitive->SetUpdateKinematicFromSimulation(true);
+			UpdatedPrimitive->SetAngularDamping(0);
+			UpdatedPrimitive->SetLinearDamping(0);
 		}
 	}
 	// ...
 }
 
+
 bool UModularMoverComponent::InitialRegistration()
 {
 	if (!GetWorld())
 		return false;
-	auto subSystem = GetWorld()->GetSubsystem<UModularMoverSubsystem>();
-	if (!subSystem)
+	_subSystem = GetWorld()->GetSubsystem<UModularMoverSubsystem>();
+	if (!_subSystem)
 		return false;
-	subSystem->RegisterComponent(this);
+	_subSystem->RegisterComponent(this);
+	return true;
+}
+
+bool UModularMoverComponent::FinalUnregistration()
+{
+	if (!_subSystem)
+		return false;
+	_subSystem->UnRegisterComponent(this);
 	return true;
 }
 
@@ -63,23 +100,51 @@ void UModularMoverComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 	// ...
 }
 
+
 void UModularMoverComponent::AsyncPhysicsTickComponent(float DeltaTime, float SimTime)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("AsyncPhysicsTickComponent");
 	if (UpdatedPrimitive)
 	{
 		if (const auto BodyInstance = UpdatedPrimitive->GetBodyInstance())
 		{
 			UKismetSystemLibrary::PrintString(this, FString::Printf(TEXT("AsyncPhysicsTickComponent at %f FPS"), UCommonToolboxBPLibrary::GetFPS(DeltaTime)), true, false
 			                                  , FColor::Red, 0, "ModeName");
+			const FTransform bodyTransform = BodyInstance->GetUnrealWorldTransform_AssumesLocked();
+			UpdatedPrimitive->SetCollisionEnabled(IsIgnoringCollision() ? ECollisionEnabled::QueryAndProbe : ECollisionEnabled::QueryAndPhysics);
 			EvaluateMovementDiff(BodyInstance);
+
+			FMechanicProperties move;
+			move.Linear.Force = FVector::ForwardVector * LinearScale;
+			move.Linear.TerminalVelocity = LinearTerminal;
+			move.Linear.StaticDrag = 1;
+			move.Angular.Torque = FVector::DownVector * AngularScale;
+			move.Angular.TerminalAngularVelocity = AngularTerminal;
+			MoveBody(BodyInstance, bodyTransform, move, DeltaTime);
 		}
 	}
 	// ...
 	Super::AsyncPhysicsTickComponent(DeltaTime, SimTime);
 }
 
+void UModularMoverComponent::EvaluateMovementSurface(const FTransform Transform, TArray<FExpandedHitResult> Surfaces)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("EvaluateMovementSurface");
+	if (DebugMode == EDebugMode::SurfaceDetection)
+	{
+		UKismetSystemLibrary::DrawDebugSphere(this, Transform.GetLocation(), 25, 8);
+		UKismetSystemLibrary::DrawDebugArrow(this, Transform.GetLocation(), Transform.GetLocation() + Transform.GetRotation().Vector() * 100, 100, FColor::White, 0, 3);
+		for (int i = 0; i < Surfaces.Num(); i++)
+		{
+			if (Surfaces[i].HitResult.GetComponent())
+				UCommonToolboxBPLibrary::DrawDebugCircleOnHit(Surfaces[i].HitResult, 40, FColor::White, Surfaces[i].HitResult.GetComponent()->GetWorld()->DeltaTimeSeconds, 0.5);
+		}
+	}
+}
+
 
 #pragma region Physic
+
 
 bool UModularMoverComponent::IsIgnoringCollision() const
 {
@@ -101,8 +166,22 @@ bool UModularMoverComponent::IsIgnoringCollision() const
 	return ignore;
 }
 
+
+FVector UModularMoverComponent::GetCurrentScanSurfaceVector() const
+{
+	return FVector::Zero();
+}
+
+
+float UModularMoverComponent::GetCurrentScanSurfaceOffset() const
+{
+	return 0;
+}
+
+
 void UModularMoverComponent::EvaluateMovementDiff(const FBodyInstance* body)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("EvaluateMovementDiff");
 	if (!body)
 		return;
 	const FTransform curTr = body->GetUnrealWorldTransform_AssumesLocked();
@@ -139,11 +218,51 @@ void UModularMoverComponent::EvaluateMovementDiff(const FBodyInstance* body)
 	}
 }
 
+
 void UModularMoverComponent::OnMoveCheck(UModularMoverComponent* Mover, FTransform Transform)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("OnMoveCheck");
 	if (Mover != this)
 		return;
+	if (bUseAsyncSurfaceDetection)
+	{
+		const auto request = AsyncDetectOverlapHits(Transform, &_onMainSurfaceChk, GetCurrentScanSurfaceVector(), GetCurrentScanSurfaceOffset());
+		if (_chkRequestMap.Contains(request))
+			_chkRequestMap[request] = Transform;
+		else
+			_chkRequestMap.Add(request, Transform);
+		return;
+	}
+
+	TArray<FExpandedHitResult> surfaceHits;
+	DetectOverlapHits(Transform, surfaceHits, GetCurrentScanSurfaceVector(), GetCurrentScanSurfaceOffset());
+	int maxDepth = 0;
+	FixOverlapHits(maxDepth, Transform, surfaceHits, [&](FVector location)-> void
+	{
+		Transform.SetLocation(location);
+	});
+	EvaluateMovementSurface(Transform, surfaceHits);
 }
+
+
+void UModularMoverComponent::OnMainSurfaceCheckDone(const FTraceHandle& TraceHandle, FTraceDatum& TraceData)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("OnMainSurfaceCheckDone");
+	if (!_chkRequestMap.Contains(TraceHandle))
+		return;
+	FTransform transform = _chkRequestMap[TraceHandle];
+	_chkRequestMap.Remove(TraceHandle);
+	TArray<FExpandedHitResult> outHitResults;
+	UCommonToolboxBPLibrary::EvaluateOffsetTraces_internal(TraceData.OutHits, outHitResults, TraceData.TraceChannel, TraceData.CollisionParams.CollisionQueryParam, ESurfaceTraceHitType::MAX,
+	                                                       MinDepthSurface);
+	int maxDepth = 0;
+	FixOverlapHits(maxDepth, transform, outHitResults, [&](FVector location)-> void
+	{
+		transform.SetLocation(location);
+	});
+	EvaluateMovementSurface(transform, outHitResults);
+}
+
 
 void UModularMoverComponent::OverlapSolver(int& maxDepth, const FTransform* customTr) const
 {
@@ -197,14 +316,35 @@ bool UModularMoverComponent::DetectOverlapHits(const FTransform Transform, TArra
 	query.AddIgnoredComponents(IgnoredCollisionComponents);
 	bool hitRes = UCommonToolboxBPLibrary::ComponentTraceMulti_internal(world, shape, channel, touchedHits, location - offset, scanVector + offset, rotation, bUseComplexCollision,
 	                                                                    query, ESurfaceTraceHitType::MAX, MinDepthSurface);
-	if (hitRes && DebugMode == EDebugMode::SurfaceDetection)
-	{
-		for (int i = 0; i < touchedHits.Num(); i++)
-		{
-			UCommonToolboxBPLibrary::DrawDebugCircleOnHit(touchedHits[i].HitResult, 40, FColor::White, world->DeltaTimeSeconds, 0.5);
-		}
-	}
 	return hitRes;
+}
+
+
+FTraceHandle UModularMoverComponent::AsyncDetectOverlapHits(const FTransform Transform, FTraceDelegate* callBack, const FVector scanVector, const uint64 CounterDirectionOffset) const
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("AsyncDetectOverlapHits");
+	if (!GetWorld() || !UpdatedPrimitive)
+		return {};
+	const auto world = GetWorld();
+	constexpr float detectionInflation = OVERLAP_INFLATION;
+	const FVector location = Transform.GetLocation();
+	const FQuat rotation = Transform.GetRotation();
+	const auto shape = UpdatedPrimitive->GetCollisionShape(detectionInflation);
+	const auto channel = UpdatedPrimitive->GetCollisionObjectType();
+	FVector offset = -scanVector.GetSafeNormal() * CounterDirectionOffset;
+	if (DebugMode == EDebugMode::SurfaceDetection)
+	{
+		FHitResult hit;
+		hit.Normal = scanVector.GetSafeNormal();
+		hit.ImpactNormal = scanVector.GetSafeNormal();
+		hit.ImpactPoint = location - offset;
+		hit.Component = UpdatedPrimitive;
+		UCommonToolboxBPLibrary::DrawDebugCircleOnHit(hit, 40, FColor::Silver, world->DeltaTimeSeconds, 0.5);
+	}
+	FCollisionQueryParams query = FCollisionQueryParams::DefaultQueryParam;
+	query.AddIgnoredActor(UpdatedPrimitive->GetOwner());
+	query.AddIgnoredComponents(IgnoredCollisionComponents);
+	return UCommonToolboxBPLibrary::AsyncComponentTraceMulti_internal(world, shape, location - offset, scanVector + offset, rotation, callBack, bUseComplexCollision, query);
 }
 
 
@@ -287,5 +427,75 @@ void UModularMoverComponent::FixOverlapHits(int& maxDepth, const FTransform Tran
 #pragma region Flow Mode
 
 // Stand alone mode
+
+#pragma endregion
+
+#pragma region Movement
+
+void UModularMoverComponent::MoveBody(FBodyInstance* Body, const FTransform BodyTransForm, const FMechanicProperties movement, const float Delta) const
+{
+	if (!Body)
+		return;
+	const FVector currentLinearVelocity = Body->GetUnrealWorldVelocity_AssumesLocked();
+	const FVector currentAngularVelocity = Body->GetUnrealWorldAngularVelocityInRadians_AssumesLocked();
+
+	UKismetSystemLibrary::PrintString(this, FString::Printf(TEXT("Velocity %f; Drag %f"), currentLinearVelocity.Length(), Body->LinearDamping), true, false
+	                                  , FColor::Magenta, 0, "ModeName2");
+	float angle = FMath::RadiansToDegrees(currentAngularVelocity.Length());
+	UKismetSystemLibrary::PrintString(this, FString::Printf(TEXT("Torque %f; Drag %f"), angle, Body->AngularDamping), true, false
+	                                  , FColor::Yellow, 0, "ModeName3");
+
+	FVector linearForce = FVector(0);
+	FVector torqueForce = FVector(0);
+	//Linear Part
+	{
+		FVector force = (movement.Linear.Force * Body->GetBodyMass()).GetClampedToMaxSize(movement.Linear.TerminalVelocity * UCommonToolboxBPLibrary::GetFPS(Delta));
+		const float terminal = movement.Linear.TerminalVelocity * 0.01;
+		float drag = terminal != 0 ? (2 * force.Length() * 0.01) / (terminal * terminal) : 0;
+		if (force.SquaredLength() <= 0)
+			drag = 10;
+		//if (force.SquaredLength() > 0)
+		{
+			FVector vel = currentLinearVelocity * 0.01;
+			const double velSqr = vel.SquaredLength();
+			if (vel.Normalize())
+			{
+				const FVector dragForce = -vel * ((velSqr * drag) / (2 * Body->GetBodyMass())) * 100 * Body->GetBodyMass();
+				force += dragForce;
+			}
+			drag = 0;
+		}
+		// else
+		// {
+		// 	drag = 0; //movement.Linear.StaticDrag;
+		// }
+
+
+		//Body->LinearDamping = drag; // * DRAG_To_DAMPING;
+		linearForce = force;
+	}
+
+
+	//Angular Part
+	{
+		FVector torque = movement.Angular.Torque.GetSafeNormal() * FMath::DegreesToRadians(movement.Angular.Torque.Length());
+		FVector angularDragForce = FVector(0);
+		FVector angVel = currentAngularVelocity;
+		const double angVelSqr = angVel.SquaredLength();
+		if (angVel.Normalize())
+		{
+			float radTerminal = FMath::DegreesToRadians(movement.Angular.TerminalAngularVelocity);
+			float angDrag = radTerminal != 0 ? 2 * torque.Length() / radTerminal * radTerminal : 0;
+			if (angDrag <= 0)
+				angDrag = movement.Angular.StaticDrag;
+			angularDragForce = -angVel * (angVelSqr * angDrag / 2);
+		}
+		torqueForce = torque + angularDragForce;
+	}
+
+	Body->UpdateDampingProperties();
+	Body->AddForce(linearForce, false, true);
+	Body->AddTorqueInRadians(torqueForce, false, true);
+}
 
 #pragma endregion

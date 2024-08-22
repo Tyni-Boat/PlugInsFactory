@@ -63,7 +63,6 @@ bool FSurface::UpdateTracking(float deltaTime)
 	return validSurface;
 }
 
-
 void FSurface::UpdateHit(FBodyInstance physicBody, FHitResult hit, ESurfaceTraceHitType offsetType)
 {
 	if (HitResult.BoneName != hit.BoneName)
@@ -88,7 +87,6 @@ void FSurface::UpdateHit(FBodyInstance physicBody, FHitResult hit, ESurfaceTrace
 		                          ? FVector(hit.PhysMaterial->Friction, hit.PhysMaterial->Restitution, 0)
 		                          : FVector(1, 0, 0);
 }
-
 
 FVector FSurface::ApplyForceAtOnSurface(const FVector point, const FVector force, bool reactionForce) const
 {
@@ -117,7 +115,6 @@ FVector FSurface::GetVelocityAlongNormal(const FVector velocity, const bool useI
 	return FVector::VectorPlaneProject(velocity, normal);
 }
 
-
 FVector FSurface::GetVelocityAt(const FVector point, const float deltaTime) const
 {
 	FVector linearPart = LinearVelocity;
@@ -142,45 +139,70 @@ FVector FSurface::GetVelocityAt(const FVector point, const float deltaTime) cons
 	return linearPart + rotVel + centripetal;
 }
 
+
 //------------------------------------------------------------------------------------------------------------------------
+
+
+FCommonMoveInfos::FCommonMoveInfos()
+{
+}
+
+//------------------------------------------------------------------------------------------------------------------------
+FContingentMoveInfos::FContingentMoveInfos()
+{
+}
+
+FContingentMoveInfos::FContingentMoveInfos(UBaseContingentMove* move)
+{
+	if(!move)
+		return;
+	BaseInfos.ModeName = move->ModeName;
+	BaseInfos.Priority = move->Priority;
+	BaseInfos.BlendTimes = move->BlendTimes;
+}
+
+FTransientMoveInfos::FTransientMoveInfos()
+{
+}
+
+FTransientMoveInfos::FTransientMoveInfos(UBaseTransientMove* move)
+{
+	if(!move)
+		return;
+	BaseInfos.ModeName = move->ModeName;
+	BaseInfos.Priority = move->Priority;
+	BaseInfos.BlendTimes = move->BlendTimes;
+	ModeDuration = move->ModeDuration;
+}
+
+//------------------------------------------------------------------------------------------------------------------------
+
 
 #pragma endregion
 
 #pragma region Classes
 
+
 UBaseMoverMovementMode::UBaseMoverMovementMode()
 {
-	OnQueryEnds.BindUObject(this, &UBaseMoverMovementMode::QueryResponse);
-}
-
-void UBaseMoverMovementMode::TestTrace(UWorld* World, FString message, FTransform tr, FCollisionShape shape) const
-{
-	TRACE_CPUPROFILER_EVENT_SCOPE_STR("TestTrace");
-	if (!World)
-	{
-		UKismetSystemLibrary::PrintString(this, FString::Printf(TEXT("No World")), true, false, FColor::Orange, 0, ModeName);
-		return;
-	}
-	World->AsyncSweepByChannel(EAsyncTraceType::Single, tr.GetLocation(), tr.GetLocation() + FVector::DownVector * 5000
-	                           , tr.GetRotation(), ECollisionChannel::ECC_Visibility, shape, FCollisionQueryParams::DefaultQueryParam,
-	                           FCollisionResponseParams::DefaultResponseParam, &OnQueryEnds);
-	UKismetSystemLibrary::PrintString(this, FString::Printf(TEXT("Debugging %s: message(%s), priority(%d)"), *ModeName.ToString(), *message, Priority)
-	                                  , true, false, FColor::Orange, 0, ModeName);
-}
-
-void UBaseMoverMovementMode::QueryResponse(const FTraceHandle& handle, FTraceDatum& datas)
-{
-	TRACE_CPUPROFILER_EVENT_SCOPE_STR("QueryResponse");
-	if (!handle.IsValid())
-		return;
-	if (datas.OutHits.Num() <= 0)
-		return;
-	UCommonToolboxBPLibrary::DrawDebugCircleOnHit(datas.OutHits[0], 40, FColor::Red, 0, 1, true);
 }
 
 bool UBaseMoverMovementMode::IsValid() const
 {
 	return ModeName != NAME_None && Priority >= 0;
+}
+
+//------------------------------------------------------------------------------------------------------------------------
+
+UBaseContingentMove::UBaseContingentMove()
+{
+}
+
+
+//------------------------------------------------------------------------------------------------------------------------
+
+UBaseTransientMove::UBaseTransientMove()
+{
 }
 
 #pragma endregion

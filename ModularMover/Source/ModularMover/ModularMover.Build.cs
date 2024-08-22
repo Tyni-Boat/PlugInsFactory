@@ -27,6 +27,7 @@ public class ModularMover : ModuleRules
 			{
 				"Core",
 				"CommonToolbox",
+				"PhysicsCore",
 				// ... add other public dependencies that you statically link with here ...
 			}
 			);
