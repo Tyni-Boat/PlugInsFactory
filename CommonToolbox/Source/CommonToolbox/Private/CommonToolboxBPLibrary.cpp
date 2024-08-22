@@ -61,6 +61,8 @@ double UCommonToolboxBPLibrary::TwoPowX(const int exponent)
 
 double UCommonToolboxBPLibrary::GetFPS(double deltaTime)
 {
+	if(FMath::IsNearlyZero(deltaTime))
+		return 0;
 	return 1 / deltaTime;
 }
 
