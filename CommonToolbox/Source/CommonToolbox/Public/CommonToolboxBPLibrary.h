@@ -3,6 +3,7 @@
 #pragma once
 
 #include "BonePose.h"
+#include "AlphaBlend.h"
 #include "Animation/AnimInstance.h"
 #include "Animation/AnimSequenceBase.h"
 #include "CollisionShape.h"
@@ -85,6 +86,14 @@ class COMMONTOOLBOX_API UCommonToolboxBPLibrary : public UBlueprintFunctionLibra
 	// Get the number of frame per seconds from a delta time
 	UFUNCTION(BlueprintCallable, Category = "Function Library | Conversions", meta=(BlueprintThreadSafe))
 	static double GetFPS(double deltaTime);
+
+	// Get the 0-1 value from evaluation of a curve alpha option from a 0-1 input
+	UFUNCTION(BlueprintCallable, Category = "Function Library | Conversions", meta=(BlueprintThreadSafe))
+	static double EvaluateCurve(FAlphaBlend curve, double inValue);
+
+	// Get the 0-1 value from evaluation of a curve alpha option from a 0-1 input
+	UFUNCTION(BlueprintCallable, Category = "Function Library | Conversions", meta=(BlueprintThreadSafe))
+	static double EvaluateCurveOption(EAlphaBlendOption curve, double inValue);
 
 	// Convert from a bool array to an integer flag. useful to serialize indexes in an array.
 	UFUNCTION(BlueprintCallable, Category = "Common Toolbox | Conversions", meta=(BlueprintThreadSafe))

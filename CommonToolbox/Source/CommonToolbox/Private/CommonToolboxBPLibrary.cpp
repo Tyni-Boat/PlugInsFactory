@@ -66,6 +66,16 @@ double UCommonToolboxBPLibrary::GetFPS(double deltaTime)
 	return 1 / deltaTime;
 }
 
+double UCommonToolboxBPLibrary::EvaluateCurve(FAlphaBlend curve, double inValue)
+{
+	return FAlphaBlend::AlphaToBlendOption(inValue, curve.GetBlendOption(), curve.GetCustomCurve());
+}
+
+double UCommonToolboxBPLibrary::EvaluateCurveOption(EAlphaBlendOption curve, double inValue)
+{
+	return FAlphaBlend::AlphaToBlendOption(inValue, curve);
+}
+
 
 int UCommonToolboxBPLibrary::BoolArrayToFlag(const TArray<bool> array)
 {
