@@ -120,6 +120,10 @@ void UModularMoverComponent::AsyncPhysicsTickComponent(float DeltaTime, float Si
 			move.Linear.StaticDrag = 1;
 			move.Angular.Torque = FVector::DownVector * AngularScale;
 			move.Angular.TerminalAngularVelocity = AngularTerminal;
+			if (AngularScale > 0)
+			{
+				AngularTerminal = AngularScale;
+			}
 			MoveBody(BodyInstance, bodyTransform, move, DeltaTime);
 		}
 	}
@@ -432,15 +436,15 @@ void UModularMoverComponent::FixOverlapHits(int& maxDepth, const FTransform Tran
 
 #pragma region Movement
 
-void UModularMoverComponent::MoveBody(FBodyInstance* Body, const FTransform BodyTransForm, const FMechanicProperties movement, const float Delta) const
+void UModularMoverComponent::MoveBody(FBodyInstance* Body, const FTransform BodyTransForm, const FMechanicProperties movement, const float Delta)
 {
 	if (!Body)
 		return;
 	const FVector currentLinearVelocity = Body->GetUnrealWorldVelocity_AssumesLocked();
 	const FVector currentAngularVelocity = Body->GetUnrealWorldAngularVelocityInRadians_AssumesLocked();
+	const float fps = UCommonToolboxBPLibrary::GetFPS(Delta);
 
-	UKismetSystemLibrary::PrintString(this, FString::Printf(TEXT("Velocity %f; Drag %f"), currentLinearVelocity.Length(), Body->LinearDamping), true, false
-	                                  , FColor::Magenta, 0, "ModeName2");
+
 	float angle = FMath::RadiansToDegrees(currentAngularVelocity.Length());
 	UKismetSystemLibrary::PrintString(this, FString::Printf(TEXT("Torque %f; Drag %f"), angle, Body->AngularDamping), true, false
 	                                  , FColor::Yellow, 0, "ModeName3");
@@ -449,30 +453,46 @@ void UModularMoverComponent::MoveBody(FBodyInstance* Body, const FTransform Body
 	FVector torqueForce = FVector(0);
 	//Linear Part
 	{
-		FVector force = (movement.Linear.Force * Body->GetBodyMass()).GetClampedToMaxSize(movement.Linear.TerminalVelocity * UCommonToolboxBPLibrary::GetFPS(Delta));
-		const float terminal = movement.Linear.TerminalVelocity * 0.01;
-		float drag = terminal != 0 ? (2 * force.Length() * 0.01) / (terminal * terminal) : 0;
-		if (force.SquaredLength() <= 0)
-			drag = 10;
-		//if (force.SquaredLength() > 0)
-		{
-			FVector vel = currentLinearVelocity * 0.01;
-			const double velSqr = vel.SquaredLength();
-			if (vel.Normalize())
-			{
-				const FVector dragForce = -vel * ((velSqr * drag) / (2 * Body->GetBodyMass())) * 100 * Body->GetBodyMass();
-				force += dragForce;
-			}
-			drag = 0;
-		}
-		// else
+		FVector force = movement.Linear.Force;
+		float drag = 0;
+		FVector vel = currentLinearVelocity * 0.01;
+		// if (force.SquaredLength() > 0 && vel.Normalize())
 		// {
-		// 	drag = 0; //movement.Linear.StaticDrag;
+		// 	const double velSqr = vel.SquaredLength();
+		// 	const float terminal = movement.Linear.TerminalVelocity * 0.01;
+		// 	drag = terminal != 0 ? (2 * (force * 0.01).Length() * Body->GetBodyMass()) / (terminal * terminal) : 0;
+		// 	const FVector dragAcc = vel * ((velSqr * drag) / (2 * Body->GetBodyMass())) * 100;
+		// 	//force -= dragAcc;
+		// 	drag = 0;
 		// }
 
+		float terminalVel = FMath::Sqrt((2 * Body->GetBodyMass() * (force * 0.01).Length()) / (Body->LinearDamping)) * 100;
+		UKismetSystemLibrary::PrintString(this, FString::Printf(TEXT("Terminal Velocity %f; Drag %f"), terminalVel, Body->LinearDamping), true, false
+		                                  , FColor::Cyan, 60, "ModeName3");
 
-		//Body->LinearDamping = drag; // * DRAG_To_DAMPING;
+
+		if (force.SquaredLength() <= 0)
+			drag = 1; //movement.Linear.StaticDrag;
+		//Body->LinearDamping = AngularScale; // * DRAG_To_DAMPING;
+		// if (AngularScale > 0) // || AngularTerminal > 0)
+		float speedRatio = 1;
+		float forceRatio = 1;
+		if (force.SquaredLength() > 0)
+		{
+			forceRatio = movement.Linear.TerminalVelocity > 0? force.Length() / movement.Linear.TerminalVelocity : 1;
+			//force = force * (1 - FMath::Clamp(forceRatio - 1, 0, 1));
+			speedRatio = FMath::Clamp(movement.Linear.TerminalVelocity > 0? currentLinearVelocity.Length() / movement.Linear.TerminalVelocity : 1, 1, fps);
+			//Body->LinearDamping = (1 - Delta) * speedRatio; // * DRAG_To_DAMPING;
+		}
+		else
+		{
+			//Body->LinearDamping = 0;
+		}
 		linearForce = force;
+
+		
+		UKismetSystemLibrary::PrintString(this, FString::Printf(TEXT("Velocity %f; Drag %f; SpdRatio %f, forceRatio %f; endForce %f"), currentLinearVelocity.Length() * (currentLinearVelocity.GetSafeNormal() | FVector::ForwardVector)
+																, Body->LinearDamping, speedRatio, forceRatio, force.Length()), true, false, FColor::Magenta, 60, "ModeName2");
 	}
 
 
@@ -495,7 +515,7 @@ void UModularMoverComponent::MoveBody(FBodyInstance* Body, const FTransform Body
 
 	Body->UpdateDampingProperties();
 	Body->AddForce(linearForce, false, true);
-	Body->AddTorqueInRadians(torqueForce, false, true);
+	//Body->AddTorqueInRadians(torqueForce, false, true);
 }
 
 #pragma endregion

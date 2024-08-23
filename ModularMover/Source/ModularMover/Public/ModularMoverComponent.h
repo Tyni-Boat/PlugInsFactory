@@ -207,9 +207,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Debug")
 	float AngularTerminal = 10;
 	
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Debug")
+	EAlphaBlendOption DampingCurve;
+	
 
 	// Move a body according to Movement
-	void MoveBody(FBodyInstance* Body, const FTransform BodyTransForm, const FMechanicProperties movement, const float Delta) const;
+	void MoveBody(FBodyInstance* Body, const FTransform BodyTransForm, const FMechanicProperties movement, const float Delta);
 
 #pragma endregion
 };
