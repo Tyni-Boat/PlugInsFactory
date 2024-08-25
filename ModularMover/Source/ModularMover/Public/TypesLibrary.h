@@ -270,9 +270,13 @@ struct FLinearMechanic
 
 public:
 
-	// The current force to apply, mass independent (assumed unit used is Cm no Meters)
+	// The current acceleration to apply (cm/s-2)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
-	FVector Force = FVector(0);
+	FVector Acceleration = FVector(0);
+
+	// The instant velocity to apply, ignoring acceleration (cm/s)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
+	FVector InstantVelocity = FVector(0);
 
 	// The terminal velocity (cm/s)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
@@ -290,9 +294,13 @@ struct FAngularMechanic
 
 public:
 
-	// The current torque to apply (deg)
+	// The angular acceleration to apply (deg/s-2)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
 	FVector Torque = FVector(0);
+
+	// The instant orientation to apply ignoring angular acceleration
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
+	FQuat InstantOrientation = FQuat::Identity;
 
 	// The terminal torque (deg) 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
@@ -315,6 +323,23 @@ public:
  
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
 	FAngularMechanic Angular = FAngularMechanic();
+};
+
+USTRUCT(BlueprintType)
+struct FMomentum
+{
+	GENERATED_BODY()
+
+public:
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
+	FTransform Transform = FTransform();
+ 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
+	FVector LinearVelocity = FVector(0);
+ 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
+	FVector AngularVelocity = FVector(0);
 };
 
 

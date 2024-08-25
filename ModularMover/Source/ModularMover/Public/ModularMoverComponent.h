@@ -196,6 +196,9 @@ public:
 #pragma region Movement
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Debug")
+	FMomentum BodyMomentum = FMomentum();
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Debug")
 	float LinearScale = 0;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Debug")
@@ -207,13 +210,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Debug")
 	float AngularTerminal = 10;
 	
-	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Debug")
-	EAlphaBlendOption DampingCurve;
-	
 
 	// Move a body according to Movement
-	void MoveBody(FBodyInstance* Body, const FTransform BodyTransForm, const FMechanicProperties movement, const float Delta);
+	void MoveBody(FBodyInstance* Body, const FMechanicProperties movement, const float Delta);
 
 #pragma endregion
 };
