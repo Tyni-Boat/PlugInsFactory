@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "CollisionShape.h"
-#include "CommonToolboxBPLibrary.h"
+#include "CommonToolboxTypeLibrary.h"
 #include "Engine/DataAsset.h"
 #include "UObject/ObjectMacros.h"
 #include "WorldCollision.h"

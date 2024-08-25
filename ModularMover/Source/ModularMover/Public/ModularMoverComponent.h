@@ -4,6 +4,7 @@
 
 #include <functional>
 #include "CoreMinimal.h"
+#include "CommonToolboxTypeLibrary.h"
 #include "ModularMoverSubsystem.h"
 #include "PhysicalMaterials/PhysicalMaterial.h"
 #include "PhysicsPublic.h"

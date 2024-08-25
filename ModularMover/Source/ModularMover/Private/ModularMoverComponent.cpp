@@ -2,8 +2,9 @@
 
 
 #include "ModularMoverComponent.h"
-
-#include "CommonToolboxBPLibrary.h"
+#include "ConversionToolbox.h"
+#include "DebugToolbox.h"
+#include "PhysicToolbox.h"
 #include "Async/Async.h"
 #include "Components/PrimitiveComponent.h"
 #include "Kismet/KismetSystemLibrary.h"
@@ -110,7 +111,7 @@ void UModularMoverComponent::AsyncPhysicsTickComponent(float DeltaTime, float Si
 	{
 		if (const auto BodyInstance = UpdatedPrimitive->GetBodyInstance())
 		{
-			UKismetSystemLibrary::PrintString(this, FString::Printf(TEXT("AsyncPhysicsTickComponent at %f FPS from thread %s"), UCommonToolboxBPLibrary::GetFPS(DeltaTime), ), true, false
+			UKismetSystemLibrary::PrintString(this, FString::Printf(TEXT("AsyncPhysicsTickComponent at %f FPS from thread %s"), UConversionToolbox::DeltaTimeToFPS(DeltaTime)), true, false
 			                                  , FColor::Red, 0, "ModeName");
 			const FTransform bodyTransform = BodyInstance->GetUnrealWorldTransform();
 			BodyInstance->SetCollisionEnabled(IsIgnoringCollision() ? ECollisionEnabled::QueryAndProbe : ECollisionEnabled::QueryAndPhysics);
@@ -141,7 +142,7 @@ void UModularMoverComponent::EvaluateMovementSurface(const FTransform Transform,
 		for (int i = 0; i < Surfaces.Num(); i++)
 		{
 			if (Surfaces[i].HitResult.GetComponent())
-				UCommonToolboxBPLibrary::DrawDebugCircleOnHit(Surfaces[i].HitResult, 40, FColor::White, Surfaces[i].HitResult.GetComponent()->GetWorld()->DeltaTimeSeconds, 0.5);
+				UDebugToolbox::DrawDebugCircleOnHit(Surfaces[i].HitResult, 40, FColor::White, Surfaces[i].HitResult.GetComponent()->GetWorld()->DeltaTimeSeconds, 0.5);
 		}
 	}
 }
@@ -257,7 +258,7 @@ void UModularMoverComponent::OnMainSurfaceCheckDone(const FTraceHandle& TraceHan
 	FTransform transform = _chkRequestMap[TraceHandle];
 	_chkRequestMap.Remove(TraceHandle);
 	TArray<FExpandedHitResult> outHitResults;
-	UCommonToolboxBPLibrary::EvaluateOffsetTraces_internal(TraceData.OutHits, outHitResults, TraceData.TraceChannel, TraceData.CollisionParams.CollisionQueryParam, ESurfaceTraceHitType::MAX,
+	UPhysicToolbox::PostPhysicTrace_internal(TraceData.OutHits, outHitResults, TraceData.TraceChannel, TraceData.CollisionParams.CollisionQueryParam, ESurfaceTraceHitType::MAX,
 	                                                       MinDepthSurface);
 	int maxDepth = 0;
 	FixOverlapHits(maxDepth, transform, outHitResults, [&](FVector location)-> void
@@ -313,12 +314,12 @@ bool UModularMoverComponent::DetectOverlapHits(const FTransform Transform, TArra
 		hit.ImpactNormal = scanVector.GetSafeNormal();
 		hit.ImpactPoint = location - offset;
 		hit.Component = UpdatedPrimitive;
-		UCommonToolboxBPLibrary::DrawDebugCircleOnHit(hit, 40, FColor::Silver, world->DeltaTimeSeconds, 0.5);
+		UDebugToolbox::DrawDebugCircleOnHit(hit, 40, FColor::Silver, world->DeltaTimeSeconds, 0.5);
 	}
 	FCollisionQueryParams query = FCollisionQueryParams::DefaultQueryParam;
 	query.AddIgnoredActor(UpdatedPrimitive->GetOwner());
 	query.AddIgnoredComponents(IgnoredCollisionComponents);
-	bool hitRes = UCommonToolboxBPLibrary::ComponentTraceMulti_internal(world, shape, channel, touchedHits, location - offset, scanVector + offset, rotation, bUseComplexCollision,
+	bool hitRes = UPhysicToolbox::ComponentTraceMulti_internal(world, shape, channel, touchedHits, location - offset, scanVector + offset, rotation, bUseComplexCollision,
 	                                                                    query, ESurfaceTraceHitType::MAX, MinDepthSurface);
 	return hitRes;
 }
@@ -343,12 +344,12 @@ FTraceHandle UModularMoverComponent::AsyncDetectOverlapHits(const FTransform Tra
 		hit.ImpactNormal = scanVector.GetSafeNormal();
 		hit.ImpactPoint = location - offset;
 		hit.Component = UpdatedPrimitive;
-		UCommonToolboxBPLibrary::DrawDebugCircleOnHit(hit, 40, FColor::Silver, world->DeltaTimeSeconds, 0.5);
+		UDebugToolbox::DrawDebugCircleOnHit(hit, 40, FColor::Silver, world->DeltaTimeSeconds, 0.5);
 	}
 	FCollisionQueryParams query = FCollisionQueryParams::DefaultQueryParam;
 	query.AddIgnoredActor(UpdatedPrimitive->GetOwner());
 	query.AddIgnoredComponents(IgnoredCollisionComponents);
-	return UCommonToolboxBPLibrary::AsyncComponentTraceMulti_internal(world, shape, location - offset, scanVector + offset, rotation, callBack, bUseComplexCollision, query);
+	return UPhysicToolbox::AsyncComponentTraceMulti_internal(world, shape, location - offset, scanVector + offset, rotation, callBack, bUseComplexCollision, query);
 }
 
 
@@ -442,7 +443,7 @@ void UModularMoverComponent::MoveBody(FBodyInstance* Body, const FMechanicProper
 		return;
 	const FVector currentLinearVelocity = BodyMomentum.LinearVelocity;
 	const FVector currentAngularVelocity = BodyMomentum.AngularVelocity;
-	const float fps = UCommonToolboxBPLibrary::GetFPS(Delta);
+	const float fps = UConversionToolbox::DeltaTimeToFPS(Delta);
 	FString compName = Body->OwnerComponent->GetName();
 
 
