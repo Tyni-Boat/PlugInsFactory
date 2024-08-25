@@ -26,6 +26,7 @@ public class CommonToolbox : ModuleRules
 			new string[]
 			{
 				"Core",
+				"Chaos",
 				// ... add other public dependencies that you statically link with here ...
 			}
 			);
