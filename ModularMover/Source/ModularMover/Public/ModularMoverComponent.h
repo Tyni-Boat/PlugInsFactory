@@ -196,8 +196,8 @@ public:
 
 #pragma region Movement
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Debug")
-	FMomentum BodyMomentum = FMomentum();
+	//UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Debug")
+	//FMomentum BodyMomentum = FMomentum();
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Debug")
 	float LinearScale = 0;

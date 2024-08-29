@@ -123,9 +123,9 @@ void UModularMoverComponent::AsyncPhysicsTickComponent(float DeltaTime, float Si
 			move.Linear.StaticDrag = 1;
 			move.Angular.Torque = FVector::DownVector * AngularScale;
 			move.Angular.TerminalAngularVelocity = AngularTerminal;
-			BodyMomentum.Transform = bodyTransform;
+			//BodyMomentum.Transform = bodyTransform;
 			MoveBody(BodyInstance, move, DeltaTime);
-			LinearScale = 0;
+			//LinearScale = 0;
 		}
 	}
 	// ...
@@ -259,7 +259,7 @@ void UModularMoverComponent::OnMainSurfaceCheckDone(const FTraceHandle& TraceHan
 	_chkRequestMap.Remove(TraceHandle);
 	TArray<FExpandedHitResult> outHitResults;
 	UPhysicToolbox::PostPhysicTrace_internal(TraceData.OutHits, outHitResults, TraceData.TraceChannel, TraceData.CollisionParams.CollisionQueryParam, ESurfaceTraceHitType::MAX,
-	                                                       MinDepthSurface);
+	                                         MinDepthSurface);
 	int maxDepth = 0;
 	FixOverlapHits(maxDepth, transform, outHitResults, [&](FVector location)-> void
 	{
@@ -320,7 +320,7 @@ bool UModularMoverComponent::DetectOverlapHits(const FTransform Transform, TArra
 	query.AddIgnoredActor(UpdatedPrimitive->GetOwner());
 	query.AddIgnoredComponents(IgnoredCollisionComponents);
 	bool hitRes = UPhysicToolbox::ComponentTraceMulti_internal(world, shape, channel, touchedHits, location - offset, scanVector + offset, rotation, bUseComplexCollision,
-	                                                                    query, ESurfaceTraceHitType::MAX, MinDepthSurface);
+	                                                           query, ESurfaceTraceHitType::MAX, MinDepthSurface);
 	return hitRes;
 }
 
@@ -441,8 +441,8 @@ void UModularMoverComponent::MoveBody(FBodyInstance* Body, const FMechanicProper
 {
 	if (!Body)
 		return;
-	const FVector currentLinearVelocity = BodyMomentum.LinearVelocity;
-	const FVector currentAngularVelocity = BodyMomentum.AngularVelocity;
+	const FVector currentLinearVelocity = UPhysicToolbox::GetRigidBodyLinearVelocity(Body); // BodyMomentum.LinearVelocity;
+	const FVector currentAngularVelocity = UPhysicToolbox::GetRigidBodyAngularVelocity(Body); // BodyMomentum.AngularVelocity;
 	const float fps = UConversionToolbox::DeltaTimeToFPS(Delta);
 	FString compName = Body->OwnerComponent->GetName();
 
@@ -480,6 +480,7 @@ void UModularMoverComponent::MoveBody(FBodyInstance* Body, const FMechanicProper
 		if (LinearScale > 0)
 		{
 			acceleration = acceleration.GetSafeNormal() * LinearScale;
+			acceleration -= currentLinearVelocity;
 			forceRatio = movement.Linear.TerminalVelocity > 0 ? acceleration.Length() / movement.Linear.TerminalVelocity : 1;
 			//force = force * (1 - FMath::Clamp(forceRatio - 1, 0, 1));
 			speedRatio = FMath::Clamp(movement.Linear.TerminalVelocity > 0 ? currentLinearVelocity.Length() / movement.Linear.TerminalVelocity : 1, 1, fps);
@@ -487,20 +488,22 @@ void UModularMoverComponent::MoveBody(FBodyInstance* Body, const FMechanicProper
 			UKismetSystemLibrary::PrintString(this, FString::Printf(TEXT("[%s] - Added Impulse"), *compName), true, true
 			                                  , FColor::Yellow, 60, "ModeName6");
 		}
-		else if(currentLinearVelocity.SquaredLength() > 0)
+		else if (currentLinearVelocity.SquaredLength() > 0)
 		{
 			acceleration = -currentLinearVelocity;
 			//Body->LinearDamping = 0;
 			UKismetSystemLibrary::PrintString(this, FString::Printf(TEXT("[%s] - Removed Impulse"), *compName), true, true
-											  , FColor::Yellow, 60, "ModeName6");
+			                                  , FColor::Yellow, 60, "ModeName6");
 		}
-		BodyMomentum.LinearVelocity = acceleration;
+		//BodyMomentum.LinearVelocity = acceleration;
+		UPhysicToolbox::RigidBodyAddImpulse(Body, acceleration, true);
 
 
 		UKismetSystemLibrary::PrintString(this, FString::Printf(
 			                                  TEXT("[%s] - Velocity %f; Drag %f; SpdRatio %f, forceRatio %f; endForce %f, linearVel %f"), *compName,
 			                                  currentLinearVelocity.Length() * (currentLinearVelocity.GetSafeNormal() | FVector::ForwardVector)
-			                                  , Body->LinearDamping, speedRatio, forceRatio, acceleration.Length(), BodyMomentum.LinearVelocity.Length()), true, true, FColor::Magenta, 60, "ModeName2");
+			                                  , Body->LinearDamping, speedRatio, forceRatio, acceleration.Length(), acceleration.Length()), true, true, FColor::Magenta, 60,
+		                                  "ModeName2");
 	}
 
 
@@ -522,8 +525,8 @@ void UModularMoverComponent::MoveBody(FBodyInstance* Body, const FMechanicProper
 	// }
 
 	//Body->UpdateDampingProperties();
-	Body->WakeInstance();
-	Body->AddImpulse(BodyMomentum.LinearVelocity, true);
+	//Body->WakeInstance();
+	//Body->AddImpulse(BodyMomentum.LinearVelocity, true);
 	//Body->AddTorqueInRadians(torqueForce, false, true);
 }
 
