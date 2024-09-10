@@ -19,6 +19,7 @@ enum class EDebugMode: uint8
 	None,
 	Spacial,
 	SurfaceDetection,
+	LinearMovement,
 };
 
 #pragma endregion
@@ -274,9 +275,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
 	FVector Acceleration = FVector(0);
 
-	// The instant velocity to apply, ignoring acceleration (cm/s)
+	// Apply velocity instantaneously, ignoring acceleration. deceleration will also be instantaneous.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
-	FVector InstantVelocity = FVector(0);
+	bool InstantMode = false;
 
 	// The terminal velocity (cm/s)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
@@ -284,7 +285,7 @@ public:
 
 	// The drag when force or Terminal Velocity are zero
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
-	float StaticDrag = 0.564;
+	float StaticDrag = 1;
 };
 
 USTRUCT(BlueprintType)
@@ -298,9 +299,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
 	FVector Torque = FVector(0);
 
-	// The instant orientation to apply ignoring angular acceleration
+	// Apply Torque as instantaneous orientation, ignoring acceleration. deceleration will also be instantaneous.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
-	FQuat InstantOrientation = FQuat::Identity;
+	bool InstantMode = false;
 
 	// The terminal torque (deg) 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
@@ -308,7 +309,7 @@ public:
 
 	// The drag when Torque or terminal Torque are zero
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
-	float StaticDrag = 0.564;
+	float StaticDrag = 1;
 };
 
 USTRUCT(BlueprintType)

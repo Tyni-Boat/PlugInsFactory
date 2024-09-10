@@ -10,6 +10,7 @@
 #include "Kismet/KismetSystemLibrary.h"
 #include "Physics/Experimental/PhysScene_Chaos.h"
 #include "PhysicsField/PhysicsFieldComponent.h"
+#include "HAL/ThreadManager.h"
 
 // Sets default values for this component's properties
 UModularMoverComponent::UModularMoverComponent()
@@ -111,21 +112,17 @@ void UModularMoverComponent::AsyncPhysicsTickComponent(float DeltaTime, float Si
 	{
 		if (const auto BodyInstance = UpdatedPrimitive->GetBodyInstance())
 		{
-			UKismetSystemLibrary::PrintString(this, FString::Printf(TEXT("AsyncPhysicsTickComponent at %f FPS from thread %s"), UConversionToolbox::DeltaTimeToFPS(DeltaTime)), true, false
-			                                  , FColor::Red, 0, "ModeName");
+			const uint32 ThreadId = FPlatformTLS::GetCurrentThreadId();
+			const FString ThreadName = FThreadManager::Get().GetThreadName(ThreadId);
+			UKismetSystemLibrary::PrintString(this, FString::Printf(TEXT("AsyncPhysicsTickComponent at %f FPS from %s"), UConversionToolbox::DeltaTimeToFPS(DeltaTime), *ThreadName)
+			                                  , true, false, FColor::Red, 0, "ModeName");
 			const FTransform bodyTransform = BodyInstance->GetUnrealWorldTransform();
 			BodyInstance->SetCollisionEnabled(IsIgnoringCollision() ? ECollisionEnabled::QueryAndProbe : ECollisionEnabled::QueryAndPhysics);
 			EvaluateMovementDiff(BodyInstance);
 
-			FMechanicProperties move;
-			move.Linear.Acceleration = FVector::ForwardVector * LinearScale;
-			move.Linear.TerminalVelocity = LinearTerminal;
-			move.Linear.StaticDrag = 1;
-			move.Angular.Torque = FVector::DownVector * AngularScale;
-			move.Angular.TerminalAngularVelocity = AngularTerminal;
+			FMechanicProperties move = DebugMovement;
 			//BodyMomentum.Transform = bodyTransform;
 			MoveBody(BodyInstance, move, DeltaTime);
-			//LinearScale = 0;
 		}
 	}
 	// ...
@@ -441,69 +438,59 @@ void UModularMoverComponent::MoveBody(FBodyInstance* Body, const FMechanicProper
 {
 	if (!Body)
 		return;
-	const FVector currentLinearVelocity = UPhysicToolbox::GetRigidBodyLinearVelocity(Body); // BodyMomentum.LinearVelocity;
-	const FVector currentAngularVelocity = UPhysicToolbox::GetRigidBodyAngularVelocity(Body); // BodyMomentum.AngularVelocity;
-	const float fps = UConversionToolbox::DeltaTimeToFPS(Delta);
-	FString compName = Body->OwnerComponent->GetName();
+	const float deltaTime = Delta;
+	const FVector currentLinearVelocity = UPhysicToolbox::GetRigidBodyLinearVelocity(Body);
+	const FVector currentAngularVelocity = UPhysicToolbox::GetRigidBodyAngularVelocity(Body);
+	const float fps = UConversionToolbox::DeltaTimeToFPS(deltaTime);
 
-
-	float angle = FMath::RadiansToDegrees(currentAngularVelocity.Length());
-	UKismetSystemLibrary::PrintString(this, FString::Printf(TEXT("[%s] - Torque %f; Drag %f"), *compName, angle, Body->AngularDamping), true, false
-	                                  , FColor::Yellow, 0, "ModeName3");
+	//
+	FVector linearMovement = FVector(0);
+	bool linearAccChange = false;
+	float linearDamping = 0;
 
 	//Linear Part
 	{
-		FVector acceleration = movement.Linear.Acceleration;
-		float drag = 0;
-		FVector vel = currentLinearVelocity * 0.01;
-		// if (force.SquaredLength() > 0 && vel.Normalize())
-		// {
-		// 	const double velSqr = vel.SquaredLength();
-		// 	const float terminal = movement.Linear.TerminalVelocity * 0.01;
-		// 	drag = terminal != 0 ? (2 * (force * 0.01).Length() * Body->GetBodyMass()) / (terminal * terminal) : 0;
-		// 	const FVector dragAcc = vel * ((velSqr * drag) / (2 * Body->GetBodyMass())) * 100;
-		// 	//force -= dragAcc;
-		// 	drag = 0;
-		// }
-
-		float terminalVel = FMath::Sqrt((2 * Body->GetBodyMass() * (acceleration * 0.01).Length()) / (Body->LinearDamping)) * 100;
-		UKismetSystemLibrary::PrintString(this, FString::Printf(TEXT("[%s] - Terminal Velocity %f; Drag %f"), *compName, terminalVel, Body->LinearDamping), true, false
-		                                  , FColor::Cyan, 60, "ModeName3");
-
-
-		if (acceleration.SquaredLength() <= 0)
-			drag = 1; //movement.Linear.StaticDrag;
-		//Body->LinearDamping = AngularScale; // * DRAG_To_DAMPING;
-		// if (AngularScale > 0) // || AngularTerminal > 0)
-		float speedRatio = 1;
-		float forceRatio = 1;
-		if (LinearScale > 0)
+		if (movement.Linear.InstantMode || movement.Linear.Acceleration.Length() >= movement.Linear.TerminalVelocity / deltaTime)
 		{
-			acceleration = acceleration.GetSafeNormal() * LinearScale;
+			//Instant mode
+			FVector acceleration = movement.Linear.Acceleration.GetSafeNormal() * movement.Linear.TerminalVelocity;
+			linearDamping = acceleration.SquaredLength() > 0 ? 0 : movement.Linear.StaticDrag;
+			linearAccChange = true;
+			const float moveDirection = FMath::Clamp(currentLinearVelocity.GetSafeNormal() | acceleration.GetSafeNormal(), 0, 1);
 			acceleration -= currentLinearVelocity;
-			forceRatio = movement.Linear.TerminalVelocity > 0 ? acceleration.Length() / movement.Linear.TerminalVelocity : 1;
-			//force = force * (1 - FMath::Clamp(forceRatio - 1, 0, 1));
-			speedRatio = FMath::Clamp(movement.Linear.TerminalVelocity > 0 ? currentLinearVelocity.Length() / movement.Linear.TerminalVelocity : 1, 1, fps);
-			//Body->LinearDamping = (1 - Delta) * speedRatio; // * DRAG_To_DAMPING;
-			UKismetSystemLibrary::PrintString(this, FString::Printf(TEXT("[%s] - Added Impulse"), *compName), true, true
-			                                  , FColor::Yellow, 60, "ModeName6");
+			linearMovement = acceleration;
+			
+
+			if (DebugMode == EDebugMode::LinearMovement)
+			{
+				UKismetSystemLibrary::PrintString(this, FString::Printf(
+													  TEXT("[Instant Mode] - Linear Vel (%f); Linear Damping (%f); Move Dir (%f); Movement Vel (%f)"),
+													  currentLinearVelocity.Length(), Body->LinearDamping, moveDirection, acceleration.Length()), true,
+												  false, FColor::Magenta, 60, "ModeName2");
+			}
 		}
-		else if (currentLinearVelocity.SquaredLength() > 0)
+		else
 		{
-			acceleration = -currentLinearVelocity;
-			//Body->LinearDamping = 0;
-			UKismetSystemLibrary::PrintString(this, FString::Printf(TEXT("[%s] - Removed Impulse"), *compName), true, true
-			                                  , FColor::Yellow, 60, "ModeName6");
+			//Progressive Mode
+			FVector acceleration = movement.Linear.Acceleration;
+			const float accRatio = movement.Linear.Acceleration.Length() / 100;
+			const float linearLimit = movement.Linear.TerminalVelocity - movement.Linear.TerminalVelocity * deltaTime + accRatio * (1 - deltaTime);
+
+			const float moveDirection = FMath::Clamp(currentLinearVelocity.GetSafeNormal() | acceleration.GetSafeNormal(), 0, 1);
+			const float forceRatio = movement.Linear.TerminalVelocity > 0 ? FMath::Clamp(accRatio, 1, TNumericLimits<float>::Max()) : 1;
+			const float fpsRatio = (linearLimit / fps);
+			linearDamping = acceleration.SquaredLength() > 0 ? ((1 - deltaTime) / fpsRatio) * forceRatio : movement.Linear.StaticDrag;
+			linearAccChange = false;
+			linearMovement = acceleration;
+
+			if (DebugMode == EDebugMode::LinearMovement)
+			{
+				UKismetSystemLibrary::PrintString(this, FString::Printf(
+					                                  TEXT("[Progressive Mode] - Linear Vel (%f); Linear Damping (%f); Terminal Vel (%f); Move Dir (%f); FPS Ratio (%f); Movement Vel (%f), Acc Ratio (%f)"),
+					                                  currentLinearVelocity.Length(), Body->LinearDamping, linearLimit, moveDirection, fpsRatio, acceleration.Length(), forceRatio), true,
+				                                  false, FColor::Magenta, 60, "ModeName2");
+			}
 		}
-		//BodyMomentum.LinearVelocity = acceleration;
-		UPhysicToolbox::RigidBodyAddImpulse(Body, acceleration, true);
-
-
-		UKismetSystemLibrary::PrintString(this, FString::Printf(
-			                                  TEXT("[%s] - Velocity %f; Drag %f; SpdRatio %f, forceRatio %f; endForce %f, linearVel %f"), *compName,
-			                                  currentLinearVelocity.Length() * (currentLinearVelocity.GetSafeNormal() | FVector::ForwardVector)
-			                                  , Body->LinearDamping, speedRatio, forceRatio, acceleration.Length(), acceleration.Length()), true, true, FColor::Magenta, 60,
-		                                  "ModeName2");
 	}
 
 
@@ -524,10 +511,13 @@ void UModularMoverComponent::MoveBody(FBodyInstance* Body, const FMechanicProper
 	// 	angularAcceleration = torque + angularDragForce;
 	// }
 
-	//Body->UpdateDampingProperties();
-	//Body->WakeInstance();
-	//Body->AddImpulse(BodyMomentum.LinearVelocity, true);
-	//Body->AddTorqueInRadians(torqueForce, false, true);
+	//Handle damping values
+	Body->LinearDamping = linearDamping;
+	Body->UpdateDampingProperties();
+
+	//Wake up and apply movement
+	Body->WakeInstance();
+	UPhysicToolbox::RigidBodyAddImpulse(Body, linearMovement, linearAccChange);
 }
 
 #pragma endregion

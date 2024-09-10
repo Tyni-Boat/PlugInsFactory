@@ -200,16 +200,7 @@ public:
 	//FMomentum BodyMomentum = FMomentum();
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Debug")
-	float LinearScale = 0;
-	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Debug")
-	float LinearTerminal = 100;
-	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Debug")
-	float AngularScale = 0;
-	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Debug")
-	float AngularTerminal = 10;
+	FMechanicProperties DebugMovement;
 	
 
 	// Move a body according to Movement
