@@ -148,7 +148,7 @@ FVector UPhysicToolbox::OrientationDiffToAngularVelocity(const FQuat initialOrie
 	FVector returnVel = FVector(0);
 	FQuat c_targetOrient = targetOrientation;
 	c_targetOrient.EnforceShortestArcWith(initialOrientation);
-	const FQuat diff = initialOrientation.Inverse() * c_targetOrient;
+	const FQuat diff = c_targetOrient * initialOrientation.Inverse();
 	FVector axis; float angle;
 	diff.ToAxisAndAngle(axis, angle);
 	returnVel = axis.GetSafeNormal() * FMath::RadiansToDegrees(angle);
