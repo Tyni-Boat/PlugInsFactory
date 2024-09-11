@@ -20,6 +20,7 @@ enum class EDebugMode: uint8
 	Spacial,
 	SurfaceDetection,
 	LinearMovement,
+	AngularMovement,
 };
 
 #pragma endregion

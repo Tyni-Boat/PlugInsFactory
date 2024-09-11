@@ -447,6 +447,9 @@ void UModularMoverComponent::MoveBody(FBodyInstance* Body, const FMechanicProper
 	FVector linearMovement = FVector(0);
 	bool linearAccChange = false;
 	float linearDamping = 0;
+	FVector angularMovement = FVector(0);
+	bool angularAccChange = false;
+	float angularDamping = 0;
 
 	//Linear Part
 	{
@@ -459,14 +462,14 @@ void UModularMoverComponent::MoveBody(FBodyInstance* Body, const FMechanicProper
 			const float moveDirection = FMath::Clamp(currentLinearVelocity.GetSafeNormal() | acceleration.GetSafeNormal(), 0, 1);
 			acceleration -= currentLinearVelocity;
 			linearMovement = acceleration;
-			
+
 
 			if (DebugMode == EDebugMode::LinearMovement)
 			{
 				UKismetSystemLibrary::PrintString(this, FString::Printf(
-													  TEXT("[Instant Mode] - Linear Vel (%f); Linear Damping (%f); Move Dir (%f); Movement Vel (%f)"),
-													  currentLinearVelocity.Length(), Body->LinearDamping, moveDirection, acceleration.Length()), true,
-												  false, FColor::Magenta, 60, "ModeName2");
+					                                  TEXT("[Instant Mode] - Linear Vel (%f); Linear Damping (%f); Move Dir (%f); Movement Vel (%f)"),
+					                                  currentLinearVelocity.Length(), Body->LinearDamping, moveDirection, acceleration.Length()), true,
+				                                  false, FColor::Magenta, 60, "ModeName2");
 			}
 		}
 		else
@@ -486,7 +489,8 @@ void UModularMoverComponent::MoveBody(FBodyInstance* Body, const FMechanicProper
 			if (DebugMode == EDebugMode::LinearMovement)
 			{
 				UKismetSystemLibrary::PrintString(this, FString::Printf(
-					                                  TEXT("[Progressive Mode] - Linear Vel (%f); Linear Damping (%f); Terminal Vel (%f); Move Dir (%f); FPS Ratio (%f); Movement Vel (%f), Acc Ratio (%f)"),
+					                                  TEXT(
+						                                  "[Progressive Mode] - Linear Vel (%f); Linear Damping (%f); Terminal Vel (%f); Move Dir (%f); FPS Ratio (%f); Movement Vel (%f), Acc Ratio (%f)"),
 					                                  currentLinearVelocity.Length(), Body->LinearDamping, linearLimit, moveDirection, fpsRatio, acceleration.Length(), forceRatio), true,
 				                                  false, FColor::Magenta, 60, "ModeName2");
 			}
@@ -494,30 +498,34 @@ void UModularMoverComponent::MoveBody(FBodyInstance* Body, const FMechanicProper
 	}
 
 
-	// //Angular Part
-	// {
-	// 	FVector torque = movement.Angular.Torque.GetSafeNormal() * FMath::DegreesToRadians(movement.Angular.Torque.Length());
-	// 	FVector angularDragForce = FVector(0);
-	// 	FVector angVel = currentAngularVelocity;
-	// 	const double angVelSqr = angVel.SquaredLength();
-	// 	if (angVel.Normalize())
-	// 	{
-	// 		float radTerminal = FMath::DegreesToRadians(movement.Angular.TerminalAngularVelocity);
-	// 		float angDrag = radTerminal != 0 ? 2 * torque.Length() / radTerminal * radTerminal : 0;
-	// 		if (angDrag <= 0)
-	// 			angDrag = movement.Angular.StaticDrag;
-	// 		angularDragForce = -angVel * (angVelSqr * angDrag / 2);
-	// 	}
-	// 	angularAcceleration = torque + angularDragForce;
-	// }
+	//Angular Part
+	{
+		if (movement.Angular.InstantMode || movement.Angular.Torque.Length() >= movement.Angular.TerminalAngularVelocity / deltaTime)
+		{
+			//Instant Mode
+			FVector torque = movement.Angular.Torque.GetSafeNormal() * FMath::DegreesToRadians(movement.Angular.Torque.Length());
+			angularMovement = torque - currentAngularVelocity;
+			angularAccChange = true;
+			
+			if (DebugMode == EDebugMode::AngularMovement)
+			{
+				UKismetSystemLibrary::PrintString(this, FString::Printf(
+													  TEXT("[Instant Mode] - Angular Vel (%f); Angular Damping (%f); Torque (%f)"),
+													  FMath::RadiansToDegrees(currentAngularVelocity.Length()), Body->AngularDamping, FMath::RadiansToDegrees(torque.Length())), true,
+												  false, FColor::Magenta, 60, "ModeName2");
+			}
+		}
+		//Body->AngularDamping = 1 - deltaTime;
+	}
 
 	//Handle damping values
 	Body->LinearDamping = linearDamping;
 	Body->UpdateDampingProperties();
-
+	
 	//Wake up and apply movement
 	Body->WakeInstance();
-	UPhysicToolbox::RigidBodyAddImpulse(Body, linearMovement, linearAccChange);
+	// UPhysicToolbox::RigidBodyAddImpulse(Body, linearMovement, linearAccChange);
+	UPhysicToolbox::RigidBodyAddAngularImpulseInRadians(Body, angularMovement, angularAccChange);
 }
 
 #pragma endregion
