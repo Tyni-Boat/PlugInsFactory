@@ -57,6 +57,12 @@ public:
 	                                                      , FCollisionQueryParams& queryParams = FCollisionQueryParams::DefaultQueryParam);
 
 
+	// Convert and orientation difference to angular velocity (Deg/s)
+	UFUNCTION(BlueprintPure, Category = "Toolbox|Physic")
+	static FVector OrientationDiffToAngularVelocity(const FQuat initialOrientation, const FQuat targetOrientation);
+
+
+	
 	// Add force to an async physic rigidBody
 	static void RigidBodyAddForce(const FBodyInstance* BodyInstance, FVector Force, bool bAccelChange);
 
@@ -120,3 +126,4 @@ public:
 	static Chaos::FRigidBodyHandle_Internal* GetInternalRigidBody(const FBodyInstance* BodyInstance);
 	
 };
+

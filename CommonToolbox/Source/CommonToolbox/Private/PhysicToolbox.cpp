@@ -143,6 +143,19 @@ FTraceHandle UPhysicToolbox::AsyncComponentTraceMulti_internal(UWorld* world, FC
 	return handle;
 }
 
+FVector UPhysicToolbox::OrientationDiffToAngularVelocity(const FQuat initialOrientation, const FQuat targetOrientation)
+{
+	FVector returnVel = FVector(0);
+	FQuat c_targetOrient = targetOrientation;
+	c_targetOrient.EnforceShortestArcWith(initialOrientation);
+	const FQuat diff = initialOrientation.Inverse() * c_targetOrient;
+	FVector axis; float angle;
+	diff.ToAxisAndAngle(axis, angle);
+	returnVel = axis.GetSafeNormal() * FMath::RadiansToDegrees(angle);
+	return returnVel;
+}
+
+
 void UPhysicToolbox::RigidBodyAddForce(const FBodyInstance* BodyInstance, FVector Force, bool bAccelChange)
 {
 	if (Chaos::FRigidBodyHandle_Internal* rg = GetInternalRigidBody(BodyInstance))
