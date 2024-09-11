@@ -11,6 +11,8 @@
 #include "Physics/Experimental/PhysScene_Chaos.h"
 #include "PhysicsField/PhysicsFieldComponent.h"
 #include "HAL/ThreadManager.h"
+#include "Kismet/KismetMathLibrary.h"
+
 
 // Sets default values for this component's properties
 UModularMoverComponent::UModularMoverComponent()
@@ -439,6 +441,7 @@ void UModularMoverComponent::MoveBody(FBodyInstance* Body, const FMechanicProper
 	if (!Body)
 		return;
 	const float deltaTime = Delta;
+	const FTransform initialTransform = UPhysicToolbox::GetRigidBodyTransform(Body);
 	const FVector currentLinearVelocity = UPhysicToolbox::GetRigidBodyLinearVelocity(Body);
 	const FVector currentAngularVelocity = UPhysicToolbox::GetRigidBodyAngularVelocity(Body);
 	const float fps = UConversionToolbox::DeltaTimeToFPS(deltaTime);
@@ -500,32 +503,139 @@ void UModularMoverComponent::MoveBody(FBodyInstance* Body, const FMechanicProper
 
 	//Angular Part
 	{
-		if (movement.Angular.InstantMode || movement.Angular.Torque.Length() >= movement.Angular.TerminalAngularVelocity / deltaTime)
+		FAngularMechanic angularPart = movement.Angular;
+
+		if (movement.Angular.TurnSpeed <= 0 || movement.Angular.TurnSpeed >= 360)
 		{
 			//Instant Mode
-			FVector torque = movement.Angular.Torque.GetSafeNormal() * FMath::DegreesToRadians(movement.Angular.Torque.Length());
-			angularMovement = torque - currentAngularVelocity;
+			FVector angVel = GetAngularVelocity(Body, angularPart, movement.Gravity, deltaTime);
+			angularMovement = angVel - currentAngularVelocity;
 			angularAccChange = true;
-			
+			angularDamping = 0;
+
 			if (DebugMode == EDebugMode::AngularMovement)
 			{
 				UKismetSystemLibrary::PrintString(this, FString::Printf(
-													  TEXT("[Instant Mode] - Angular Vel (%f); Angular Damping (%f); Torque (%f)"),
-													  FMath::RadiansToDegrees(currentAngularVelocity.Length()), Body->AngularDamping, FMath::RadiansToDegrees(torque.Length())), true,
-												  false, FColor::Magenta, 60, "ModeName2");
+					                                  TEXT("[Instant Mode] - Last Angular Vel (%f); Angular Damping (%f); Look Dir (%s)"),
+					                                  FMath::RadiansToDegrees(currentAngularVelocity.Length()), Body->AngularDamping,
+					                                  *angularPart.LookDirection.ToCompactString()), true,
+				                                  false, FColor::Magenta, 60, "ModeName2");
 			}
 		}
-		//Body->AngularDamping = 1 - deltaTime;
+		else
+		{
+			//Progressive Mode
+			FVector angVel = GetAngularVelocity(Body, angularPart, movement.Gravity, deltaTime);
+			angularAccChange = false;
+			angularMovement = angVel * fps * angularPart.LookDirection.Length();
+			angularDamping = FAlphaBlend::AlphaToBlendOption(FMath::GetMappedRangeValueClamped(TRange<double>(180.0, 0.0), TRange<double>(0.0, 1), angVel.Length()),
+			                                                 EAlphaBlendOption::ExpIn) * fps * FMath::Clamp(currentAngularVelocity.Length() * 0.1, 1, TNumericLimits<float>::Max());
+			// * FMath::Clamp(angularPart.LookDirection.Length() / 45, 1, TNumericLimits<float>::Max());
+
+			if (DebugMode == EDebugMode::AngularMovement)
+			{
+				UKismetSystemLibrary::PrintString(this, FString::Printf(
+					                                  TEXT("[Instant Mode] - Last Angular Vel (%f); Angular Damping (%f); Look Dir (%s); Angular Vel (%f)"),
+					                                  FMath::RadiansToDegrees(currentAngularVelocity.Length()), Body->AngularDamping,
+					                                  *angularPart.LookDirection.ToCompactString(), angVel.Length()), true,
+				                                  false, FColor::Magenta, 60, "ModeName2");
+			}
+		}
 	}
 
 	//Handle damping values
 	Body->LinearDamping = linearDamping;
+	Body->AngularDamping = angularDamping;
 	Body->UpdateDampingProperties();
-	
+
 	//Wake up and apply movement
 	Body->WakeInstance();
-	// UPhysicToolbox::RigidBodyAddImpulse(Body, linearMovement, linearAccChange);
+	//UPhysicToolbox::RigidBodyAddImpulse(Body, linearMovement, linearAccChange);
 	UPhysicToolbox::RigidBodyAddAngularImpulseInRadians(Body, angularMovement, angularAccChange);
+}
+
+bool UModularMoverComponent::GetAngularOrientation(FQuat& Orientation, const FBodyInstance* Body, const FAngularMechanic angularMechanic, const FVector Gravity, const float inDelta) const
+{
+	if (!Body)
+		return false;
+	const FTransform initialTransform = UPhysicToolbox::GetRigidBodyTransform(Body);
+	Orientation = initialTransform.GetRotation();
+
+	FVector gravityUp = -Gravity;
+	if (!gravityUp.Normalize())
+		gravityUp = FVector::UpVector;
+
+	//Handle surfaces rotation
+	{
+		// const FVector surfaceRotVel = UFunctionLibrary::GetAverageSurfaceAngularSpeed(angularMechanic);
+		// output.LookDirection *= FQuat(surfaceRotVel.GetSafeNormal(), FMath::DegreesToRadians(surfaceRotVel.Length()) * inDelta);
+	}
+
+	//LookDirection
+	{
+		FVector virtualFwdDir = FVector::VectorPlaneProject(angularMechanic.LookDirection.SquaredLength() > 0
+			                                                    ? angularMechanic.LookDirection.GetSafeNormal()
+			                                                    : initialTransform.GetRotation().Vector(), gravityUp);
+		FVector virtualRightDir = FVector::ZeroVector;
+		if (virtualFwdDir.Normalize())
+		{
+			virtualRightDir = FVector::CrossProduct(gravityUp, virtualFwdDir);
+		}
+		else
+		{
+			virtualFwdDir = -virtualFwdDir.Rotation().Quaternion().GetAxisZ();
+			FVector::CreateOrthonormalBasis(virtualFwdDir, virtualRightDir, gravityUp);
+			virtualFwdDir.Normalize();
+		}
+		if (!virtualRightDir.Normalize())
+		{
+			if (DebugMode == EDebugMode::AngularMovement)
+			{
+				UKismetSystemLibrary::PrintString(
+					this, FString::Printf(TEXT("Cannot normalize right vector: up = %s, fwd= %s"), *gravityUp.ToCompactString(), *virtualFwdDir.ToCompactString()), true,
+					false, FColor::Yellow, 60, "RotError");
+			}
+			return false;
+		}
+		const FRotator desiredRotator = UKismetMathLibrary::MakeRotFromZX(gravityUp, virtualFwdDir);
+		virtualFwdDir = desiredRotator.Quaternion().GetAxisX();
+		virtualRightDir = desiredRotator.Quaternion().GetAxisY();
+		
+		Orientation = desiredRotator.Quaternion() * RotationOffset.Quaternion();
+	}
+
+
+	return true;
+}
+
+FVector UModularMoverComponent::GetAngularVelocity(const FBodyInstance* Body, const FAngularMechanic angularMechanic, const FVector Gravity, const float inDelta) const
+{
+	FQuat orientation;
+	if (!GetAngularOrientation(orientation, Body, angularMechanic, Gravity, inDelta))
+		return FVector(0);
+
+	FVector output = FVector(0);
+	const FTransform initialTransform = UPhysicToolbox::GetRigidBodyTransform(Body);
+
+	orientation.EnforceShortestArcWith(initialTransform.GetRotation());
+	FQuat diff = orientation * initialTransform.GetRotation().Inverse();
+	diff.Normalize();
+	if(!diff.IsNormalized())
+		return FVector(0);
+	FVector axis;
+	float angle;
+	diff.ToAxisAndAngle(axis, angle);
+
+	
+	UKismetSystemLibrary::DrawDebugArrow(this, initialTransform.GetLocation(), initialTransform.GetLocation() + axis * 250, 200, FColor::Red, 0, 3);
+	//UKismetSystemLibrary::DrawDebugArrow(this, initialTransform.GetLocation(), initialTransform.GetLocation() + diff.GetRightVector() * 250, 200, FColor::Green, 0, 3);
+	//UKismetSystemLibrary::DrawDebugArrow(this, initialTransform.GetLocation(), initialTransform.GetLocation() + diff.GetUpVector() * 250, 200, FColor::Blue, 0, 3);
+	
+	angle = FMath::RadiansToDegrees(angle);
+	//if (!FMath::IsNearlyZero(angle, inDelta * 10))
+		output = axis * angle;
+
+	return output;
 }
 
 #pragma endregion

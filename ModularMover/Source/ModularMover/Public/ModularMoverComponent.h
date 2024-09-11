@@ -72,6 +72,10 @@ public:
 	// Called when ever the location of the controller changed.
 	FOnMoveDelegate OnComponentMoved;
 
+	// The rotation offset. helpful when using rotated skeletal mesh components 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Physic|Spacial")
+	FRotator RotationOffset;
+
 	// The current area chunk
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Physic|Spacial")
 	FChunkAreaID CurrentAreaChunk;
@@ -201,10 +205,16 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Debug")
 	FMechanicProperties DebugMovement;
-	
+
 
 	// Move a body according to Movement
 	void MoveBody(FBodyInstance* Body, const FMechanicProperties movement, const float Delta);
+
+	// Get the orientation, keeping body upright.
+	bool GetAngularOrientation(FQuat& Orientation, const FBodyInstance* Body, const FAngularMechanic angularMechanic, const FVector Gravity, const float inDelta) const;
+
+	// Calculate an Angular Velocity to fit orientation, keeping body upright.
+	FVector GetAngularVelocity(const FBodyInstance* Body, const FAngularMechanic angularMechanic, const FVector Gravity, const float inDelta) const;
 
 #pragma endregion
 };

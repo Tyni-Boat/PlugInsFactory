@@ -271,7 +271,6 @@ struct FLinearMechanic
 	GENERATED_BODY()
 
 public:
-
 	// The current acceleration to apply (cm/s-2)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
 	FVector Acceleration = FVector(0);
@@ -295,22 +294,13 @@ struct FAngularMechanic
 	GENERATED_BODY()
 
 public:
-
-	// The angular acceleration to apply (deg/s-2)
+	// The target look orientation.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
-	FVector Torque = FVector(0);
+	FVector LookDirection = FVector(0);
 
-	// Apply Torque as instantaneous orientation, ignoring acceleration. deceleration will also be instantaneous.
+	// The actual rotation speed (deg/s). zero, negative values and excessive values will make the rotation instantaneous
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
-	bool InstantMode = false;
-
-	// The terminal torque (deg) 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
-	float TerminalAngularVelocity = 0;
-
-	// The drag when Torque or terminal Torque are zero
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
-	float StaticDrag = 1;
+	float TurnSpeed = 1;
 };
 
 USTRUCT(BlueprintType)
@@ -319,12 +309,14 @@ struct FMechanicProperties
 	GENERATED_BODY()
 
 public:
-
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
 	FLinearMechanic Linear = FLinearMechanic();
- 
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
 	FAngularMechanic Angular = FAngularMechanic();
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
+	FVector Gravity = FVector(0, 0, -1);
 };
 
 USTRUCT(BlueprintType)
@@ -333,13 +325,12 @@ struct FMomentum
 	GENERATED_BODY()
 
 public:
-
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
 	FTransform Transform = FTransform();
- 
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
 	FVector LinearVelocity = FVector(0);
- 
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
 	FVector AngularVelocity = FVector(0);
 };
