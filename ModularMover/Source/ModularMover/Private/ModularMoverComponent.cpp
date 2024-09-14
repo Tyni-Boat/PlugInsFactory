@@ -436,6 +436,38 @@ void UModularMoverComponent::FixOverlapHits(int& maxDepth, const FTransform Tran
 
 #pragma region Movement
 
+
+FVector UModularMoverComponent::ComputeLinearVelocity(const FLinearMechanic AttemptedMovement, const FVector currentLinearVelocity, const float mass, const float deltaTime,
+                                                      bool UseReduction)
+{
+	const float moveDirection = FMath::Clamp(currentLinearVelocity.GetSafeNormal() | AttemptedMovement.Acceleration.GetSafeNormal(), 0, 1);
+	FVector velocity = AttemptedMovement.InstantMode
+		                   ? AttemptedMovement.Acceleration.GetSafeNormal() * AttemptedMovement.TerminalVelocity
+		                   : AttemptedMovement.Acceleration * deltaTime + currentLinearVelocity;
+	if (!AttemptedMovement.InstantMode)
+	{
+		//Drag
+		{
+			FVector vel = currentLinearVelocity;
+			const double velSqr = vel.SquaredLength();
+			if (vel.Normalize())
+			{
+				float drag = (2 * AttemptedMovement.Acceleration.Length() * mass) / (AttemptedMovement.TerminalVelocity * AttemptedMovement.TerminalVelocity);
+				if (drag <= 0)
+					drag = AttemptedMovement.StaticDrag > 0
+						       ? AttemptedMovement.StaticDrag
+						       : (2 * AttemptedMovement.TerminalVelocity * mass) / (AttemptedMovement.TerminalVelocity * AttemptedMovement.TerminalVelocity);
+				velocity -= (vel * ((velSqr * drag) / (2 * mass)) * deltaTime).GetClampedToMaxSize(velocity.Length());
+			}
+		}
+	}
+	if (UseReduction)
+		velocity -= currentLinearVelocity;
+
+	return velocity;
+}
+
+
 void UModularMoverComponent::MoveBody(FBodyInstance* Body, const FMechanicProperties movement, const float Delta)
 {
 	if (!Body)
@@ -448,55 +480,21 @@ void UModularMoverComponent::MoveBody(FBodyInstance* Body, const FMechanicProper
 
 	//
 	FVector linearMovement = FVector(0);
-	bool linearAccChange = false;
-	float linearDamping = 0;
 	FVector angularMovement = FVector(0);
 	bool angularAccChange = false;
 	float angularDamping = 0;
 
 	//Linear Part
 	{
-		if (movement.Linear.InstantMode || movement.Linear.Acceleration.Length() >= movement.Linear.TerminalVelocity / deltaTime)
+		linearMovement = ComputeLinearVelocity(movement.Linear, currentLinearVelocity, GetMass(), deltaTime, true);
+
+		if (DebugMode == EDebugMode::LinearMovement)
 		{
-			//Instant mode
-			FVector acceleration = movement.Linear.Acceleration.GetSafeNormal() * movement.Linear.TerminalVelocity;
-			linearDamping = acceleration.SquaredLength() > 0 ? 0 : movement.Linear.StaticDrag;
-			linearAccChange = true;
-			const float moveDirection = FMath::Clamp(currentLinearVelocity.GetSafeNormal() | acceleration.GetSafeNormal(), 0, 1);
-			acceleration -= currentLinearVelocity;
-			linearMovement = acceleration;
-
-
-			if (DebugMode == EDebugMode::LinearMovement)
-			{
-				UKismetSystemLibrary::PrintString(this, FString::Printf(
-					                                  TEXT("[Instant Mode] - Linear Vel (%f); Linear Damping (%f); Move Dir (%f); Movement Vel (%f)"),
-					                                  currentLinearVelocity.Length(), Body->LinearDamping, moveDirection, acceleration.Length()), true,
-				                                  false, FColor::Magenta, 60, "ModeName2");
-			}
-		}
-		else
-		{
-			//Progressive Mode
-			FVector acceleration = movement.Linear.Acceleration;
-			const float accRatio = movement.Linear.Acceleration.Length() / 100;
-			const float linearLimit = movement.Linear.TerminalVelocity - movement.Linear.TerminalVelocity * deltaTime + accRatio * (1 - deltaTime);
-
-			const float moveDirection = FMath::Clamp(currentLinearVelocity.GetSafeNormal() | acceleration.GetSafeNormal(), 0, 1);
-			const float forceRatio = movement.Linear.TerminalVelocity > 0 ? FMath::Clamp(accRatio, 1, TNumericLimits<float>::Max()) : 1;
-			const float fpsRatio = (linearLimit / fps);
-			linearDamping = acceleration.SquaredLength() > 0 ? ((1 - deltaTime) / fpsRatio) * forceRatio : movement.Linear.StaticDrag;
-			linearAccChange = false;
-			linearMovement = acceleration;
-
-			if (DebugMode == EDebugMode::LinearMovement)
-			{
-				UKismetSystemLibrary::PrintString(this, FString::Printf(
-					                                  TEXT(
-						                                  "[Progressive Mode] - Linear Vel (%f); Linear Damping (%f); Terminal Vel (%f); Move Dir (%f); FPS Ratio (%f); Movement Vel (%f), Acc Ratio (%f)"),
-					                                  currentLinearVelocity.Length(), Body->LinearDamping, linearLimit, moveDirection, fpsRatio, acceleration.Length(), forceRatio), true,
-				                                  false, FColor::Magenta, 60, "ModeName2");
-			}
+			const float moveDirection = FMath::Clamp(currentLinearVelocity.GetSafeNormal() | movement.Linear.Acceleration.GetSafeNormal(), -1, 1);
+			UKismetSystemLibrary::PrintString(this, FString::Printf(
+				                                  TEXT("[LinearVelocity] - Current Vel (%f); Move Dir (%f); Movement Vel (%f)"),
+				                                  currentLinearVelocity.Length(), moveDirection, linearMovement.Length()), true,
+			                                  false, FColor::Magenta, 60, "ComputeLinearVelocity");
 		}
 	}
 
@@ -544,13 +542,13 @@ void UModularMoverComponent::MoveBody(FBodyInstance* Body, const FMechanicProper
 	}
 
 	//Handle damping values
-	Body->LinearDamping = linearDamping;
+	Body->LinearDamping = 0;
 	Body->AngularDamping = angularDamping;
 	Body->UpdateDampingProperties();
 
 	//Wake up and apply movement
 	Body->WakeInstance();
-	//UPhysicToolbox::RigidBodyAddImpulse(Body, linearMovement, linearAccChange);
+	UPhysicToolbox::RigidBodyAddImpulse(Body, linearMovement, true);
 	UPhysicToolbox::RigidBodyAddAngularImpulseInRadians(Body, angularMovement, angularAccChange);
 }
 
@@ -600,7 +598,7 @@ bool UModularMoverComponent::GetAngularOrientation(FQuat& Orientation, const FBo
 		const FRotator desiredRotator = UKismetMathLibrary::MakeRotFromZX(gravityUp, virtualFwdDir);
 		virtualFwdDir = desiredRotator.Quaternion().GetAxisX();
 		virtualRightDir = desiredRotator.Quaternion().GetAxisY();
-		
+
 		Orientation = desiredRotator.Quaternion() * RotationOffset.Quaternion();
 	}
 
@@ -614,28 +612,30 @@ FVector UModularMoverComponent::GetAngularVelocity(const FBodyInstance* Body, co
 	if (!GetAngularOrientation(orientation, Body, angularMechanic, Gravity, inDelta))
 		return FVector(0);
 
-	FVector output = FVector(0);
 	const FTransform initialTransform = UPhysicToolbox::GetRigidBodyTransform(Body);
+	return UPhysicToolbox::OrientationDiffToAngularVelocity(initialTransform.GetRotation(), orientation);
+}
 
-	orientation.EnforceShortestArcWith(initialTransform.GetRotation());
-	FQuat diff = orientation * initialTransform.GetRotation().Inverse();
-	diff.Normalize();
-	if(!diff.IsNormalized())
-		return FVector(0);
-	FVector axis;
-	float angle;
-	diff.ToAxisAndAngle(axis, angle);
+TArray<FMomentum> UModularMoverComponent::GetTrajectory(const int SampleCount, const FMechanicProperties inputMovement, const FMomentum currentMomentum, const float timeStep)
+{
+	TArray<FMomentum> result;
+	result.Add(currentMomentum);
+	for (int i = 0; i < SampleCount; i++)
+	{
+		FMomentum lastItem = result[result.Num() - 1];
+		FMomentum iteration;
+		iteration.Mass = currentMomentum.Mass;
 
-	
-	UKismetSystemLibrary::DrawDebugArrow(this, initialTransform.GetLocation(), initialTransform.GetLocation() + axis * 250, 200, FColor::Red, 0, 3);
-	//UKismetSystemLibrary::DrawDebugArrow(this, initialTransform.GetLocation(), initialTransform.GetLocation() + diff.GetRightVector() * 250, 200, FColor::Green, 0, 3);
-	//UKismetSystemLibrary::DrawDebugArrow(this, initialTransform.GetLocation(), initialTransform.GetLocation() + diff.GetUpVector() * 250, 200, FColor::Blue, 0, 3);
-	
-	angle = FMath::RadiansToDegrees(angle);
-	//if (!FMath::IsNearlyZero(angle, inDelta * 10))
-		output = axis * angle;
+		//Linear part
+		{
+			iteration.Transform.SetLocation(lastItem.Transform.GetLocation() + lastItem.LinearVelocity * timeStep);
+			iteration.LinearVelocity = ComputeLinearVelocity(inputMovement.Linear, lastItem.LinearVelocity, currentMomentum.Mass, timeStep);
+		}
 
-	return output;
+		result.Add(iteration);
+	}
+
+	return result;
 }
 
 #pragma endregion

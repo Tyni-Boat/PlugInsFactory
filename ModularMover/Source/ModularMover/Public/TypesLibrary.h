@@ -333,6 +333,9 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
 	FVector AngularVelocity = FVector(0);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
+	float Mass = 1;
 };
 
 

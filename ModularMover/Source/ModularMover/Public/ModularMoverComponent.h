@@ -162,6 +162,9 @@ protected:
 	void FixOverlapHits(int& maxDepth, const FTransform Transform, const TArray<FExpandedHitResult> touchedHits, std::function<void(FVector)> OnLocationSet = {},
 	                    std::function<void(UPrimitiveComponent*, FVector)> OnPhysicCompHit = {}) const;
 
+	// Calculate velocity. UseReduction subtract the current Linear Velocity from the end result.
+	static FVector ComputeLinearVelocity(FLinearMechanic AttemptedMovement, FVector currentLinearVelocity, const float mass, const float deltaTime, bool UseReduction = false);
+
 #pragma endregion
 
 #pragma region Movement Modes
@@ -215,6 +218,10 @@ public:
 
 	// Calculate an Angular Velocity to fit orientation, keeping body upright.
 	FVector GetAngularVelocity(const FBodyInstance* Body, const FAngularMechanic angularMechanic, const FVector Gravity, const float inDelta) const;
+
+	// Get the trajectory
+	UFUNCTION(BlueprintPure, Category="Mover|Movement")
+	static TArray<FMomentum> GetTrajectory(const int SampleCount, const FMechanicProperties inputMovement, const FMomentum currentMomentum, const float timeStep);
 
 #pragma endregion
 };
