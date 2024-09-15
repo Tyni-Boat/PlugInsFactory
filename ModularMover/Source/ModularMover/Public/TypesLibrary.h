@@ -294,13 +294,13 @@ struct FAngularMechanic
 	GENERATED_BODY()
 
 public:
-	// The target look orientation.
+	// The Look rotation, used to calculate Orientation Diff whenever it is Identity Quaternion. The lenght of the vector will be the rotation speed
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
-	FVector LookDirection = FVector(0);
+	FVector LookOrientation = FVector(0);
 
-	// The actual rotation speed (deg/s). zero, negative values and excessive values will make the rotation instantaneous
+	// The target orientation difference to apply.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
-	float TurnSpeed = 1;
+	FQuat OrientationDiff = FQuat::Identity;
 };
 
 USTRUCT(BlueprintType)

@@ -162,8 +162,12 @@ protected:
 	void FixOverlapHits(int& maxDepth, const FTransform Transform, const TArray<FExpandedHitResult> touchedHits, std::function<void(FVector)> OnLocationSet = {},
 	                    std::function<void(UPrimitiveComponent*, FVector)> OnPhysicCompHit = {}) const;
 
-	// Calculate velocity. UseReduction subtract the current Linear Velocity from the end result.
+	// Calculate Linear velocity. UseReduction subtract the current Linear Velocity from the end result.
 	static FVector ComputeLinearVelocity(FLinearMechanic AttemptedMovement, FVector currentLinearVelocity, const float mass, const float deltaTime, bool UseReduction = false);
+
+	// Calculate Angular velocity (Rad/s). UseReduction subtract the current Angular Velocity from the end result.
+	static FVector ComputeAngularVelocity(FAngularMechanic AttemptedMovement, FVector CurrentAngularVelocity, const FQuat CurrentOrientation, FVector Gravity, const float deltaTime,
+	                                      bool UseReduction = false);
 
 #pragma endregion
 
@@ -211,13 +215,13 @@ public:
 
 
 	// Move a body according to Movement
-	void MoveBody(FBodyInstance* Body, const FMechanicProperties movement, const float Delta);
+	void MoveBody(FBodyInstance* Body, const FMechanicProperties movement, const float Delta) const;
 
 	// Get the orientation, keeping body upright.
-	bool GetAngularOrientation(FQuat& Orientation, const FBodyInstance* Body, const FAngularMechanic angularMechanic, const FVector Gravity, const float inDelta) const;
+	static bool GetAngularOrientation(FQuat& Orientation, const FQuat BodyOrientation, const FAngularMechanic angularMechanic, const FVector Gravity);
 
-	// Calculate an Angular Velocity to fit orientation, keeping body upright.
-	FVector GetAngularVelocity(const FBodyInstance* Body, const FAngularMechanic angularMechanic, const FVector Gravity, const float inDelta) const;
+	// Calculate an Angular Velocity (Deg/Sec) to fit orientation, keeping body upright.
+	static FVector GetAngularVelocity(const FQuat BodyOrientation, const FAngularMechanic angularMechanic, const FVector Gravity);
 
 	// Get the trajectory
 	UFUNCTION(BlueprintPure, Category="Mover|Movement")
