@@ -145,13 +145,12 @@ FTraceHandle UPhysicToolbox::AsyncComponentTraceMulti_internal(UWorld* world, FC
 
 FVector UPhysicToolbox::OrientationDiffToAngularVelocity(const FQuat initialOrientation, const FQuat targetOrientation)
 {
-	FVector returnVel = FVector(0);
 	FQuat c_targetOrient = targetOrientation;
 	c_targetOrient.EnforceShortestArcWith(initialOrientation);
 	const FQuat diff = c_targetOrient * initialOrientation.Inverse();
 	FVector axis; float angle;
 	diff.ToAxisAndAngle(axis, angle);
-	return returnVel;
+	return axis.GetSafeNormal() * angle;
 }
 
 
