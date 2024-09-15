@@ -24,11 +24,11 @@ public:
 	static bool IsVectorCone(const FVector inVector, const FVector normal, const float alphaAngle = 90);
 
 	// Project a 2D axis into 3D space using a transform. (transform.Fwd * input.Y & transform.Right * input.X)
-	UFUNCTION(BlueprintCallable, Category = "Toolbox|Vectors", meta=(AdvancedDisplay=2, BlueprintThreadSafe))
+	UFUNCTION(BlueprintPure, Category = "Toolbox|Vectors", meta=(AdvancedDisplay=2, BlueprintThreadSafe))
 	static FVector Project2DInputs(FVector2D input, FTransform transformRelative, FVector planeNormal = FVector(0));
 
 	//Get the vector translating point to surface impact point along an axis if provided
-	UFUNCTION(BlueprintCallable, Category = "Toolbox|Vectors", meta=(BlueprintThreadSafe))
+	UFUNCTION(BlueprintPure, Category = "Toolbox|Vectors", meta=(BlueprintThreadSafe))
 	static FVector GetSnapOnSurfaceVector(const FVector point, const FHitResult surface, const FVector axis);
 
 };

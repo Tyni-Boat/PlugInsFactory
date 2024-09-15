@@ -57,7 +57,7 @@ public:
 	                                                      , FCollisionQueryParams& queryParams = FCollisionQueryParams::DefaultQueryParam);
 
 
-	// Convert and orientation difference to angular velocity (Deg/s)
+	// Convert and orientation difference to angular velocity (Rad/s)
 	UFUNCTION(BlueprintPure, Category = "Toolbox|Physic")
 	static FVector OrientationDiffToAngularVelocity(const FQuat initialOrientation, const FQuat targetOrientation);
 
