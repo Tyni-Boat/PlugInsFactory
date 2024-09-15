@@ -220,7 +220,7 @@ public:
 	// Get the orientation, keeping body upright.
 	static bool GetAngularOrientation(FQuat& Orientation, const FQuat BodyOrientation, const FAngularMechanic angularMechanic, const FVector Gravity);
 
-	// Calculate an Angular Velocity (Deg/Sec) to fit orientation, keeping body upright.
+	// Calculate an Angular Velocity (Rad/s) to fit orientation, keeping body upright.
 	static FVector GetAngularVelocity(const FQuat BodyOrientation, const FAngularMechanic angularMechanic, const FVector Gravity);
 
 	// Get the trajectory

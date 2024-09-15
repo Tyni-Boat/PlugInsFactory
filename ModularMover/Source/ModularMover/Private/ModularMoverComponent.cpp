@@ -481,7 +481,6 @@ FVector UModularMoverComponent::ComputeAngularVelocity(FAngularMechanic Attempte
 	}
 
 	FVector result = GetAngularVelocity(CurrentOrientation, angularPart, Gravity);
-	//result = result.GetSafeNormal() * FMath::DegreesToRadians(result.Length());
 
 	if (UseReduction)
 		result -= CurrentAngularVelocity;
@@ -519,13 +518,14 @@ void UModularMoverComponent::MoveBody(FBodyInstance* Body, const FMechanicProper
 
 	//Angular Part
 	{
+		UKismetSystemLibrary::DrawDebugArrow(this, initialTransform.GetLocation(), initialTransform.GetLocation() + movement.Angular.LookOrientation.GetSafeNormal() * 200, 200, FColor::Black);
 		angularMovement = ComputeAngularVelocity(movement.Angular, currentAngularVelocity, initialTransform.GetRotation(), movement.Gravity, Delta, true);
 
 		if (DebugMode == EDebugMode::AngularMovement)
 		{
 			UKismetSystemLibrary::PrintString(this, FString::Printf(
 				                                  TEXT("[AngularVelocity] - Current Vel (%f); Rotation Vel (%f)"),
-				                                  FMath::RadiansToDegrees(FMath::RadiansToDegrees(currentAngularVelocity.Length())), FMath::RadiansToDegrees(angularMovement.Length())), true,
+				                                  FMath::RadiansToDegrees(currentAngularVelocity.Length()), FMath::RadiansToDegrees(angularMovement.Length())), true,
 			                                  false, FColor::Magenta, 60, "ComputeAngularVelocity");
 		}
 	}
@@ -538,7 +538,7 @@ void UModularMoverComponent::MoveBody(FBodyInstance* Body, const FMechanicProper
 	//Wake up and apply movement
 	Body->WakeInstance();
 	UPhysicToolbox::RigidBodyAddImpulse(Body, linearMovement, true);
-	UPhysicToolbox::RigidBodyAddAngularImpulseInRadians(Body, angularMovement, true);
+	UPhysicToolbox::RigidBodyAddAngularImpulseInRadians(Body,UPhysicToolbox::OrientationDiffToAngularVelocity(initialTransform.GetRotation(), movement.Angular.LookOrientation.GetSafeNormal().ToOrientationQuat()), true);// angularMovement, true);
 }
 
 bool UModularMoverComponent::GetAngularOrientation(FQuat& Orientation, const FQuat BodyOrientation, const FAngularMechanic angularMechanic, const FVector Gravity)
