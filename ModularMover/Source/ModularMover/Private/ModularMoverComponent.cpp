@@ -21,9 +21,8 @@ UModularMoverComponent::UModularMoverComponent()
 	// off to improve performance if you don't need them.
 	PrimaryComponentTick.bCanEverTick = true;
 	bAutoRegisterUpdatedComponent = true;
-	SetTickGroup(TG_PrePhysics);
+	SetTickGroup(TG_PostPhysics);
 	SetAsyncPhysicsTickEnabled(true);
-	InitialRegistration();
 	// ...
 }
 
@@ -59,6 +58,7 @@ void UModularMoverComponent::BeginPlay()
 			_lastRotation_trigger = _curRotation;
 
 			UpdatedPrimitive->SetSimulatePhysics(true);
+			UpdatedPrimitive->SetUseCCD(true);
 			_customPhysicMaterial = NewObject<UPhysicalMaterial>();
 			_customPhysicMaterial->bOverrideFrictionCombineMode = true;
 			_customPhysicMaterial->bOverrideRestitutionCombineMode = true;
@@ -72,12 +72,12 @@ void UModularMoverComponent::BeginPlay()
 			UpdatedPrimitive->SetUpdateKinematicFromSimulation(true);
 			UpdatedPrimitive->SetAngularDamping(0);
 			UpdatedPrimitive->SetLinearDamping(0);
+			UpdatedPrimitive->SetPhysicsMaxAngularVelocityInRadians(FMath::DegreesToRadians(36000), false);
 			UpdatedPrimitive->GetBodyInstance()->SetSmoothEdgeCollisionsEnabled(true);
 		}
 	}
 	// ...
 }
-
 
 bool UModularMoverComponent::InitialRegistration()
 {
@@ -104,9 +104,13 @@ void UModularMoverComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 	// ...
+	UpdateInputs(DeltaTime);
+	if (UpdatedPrimitive)
+		UpdatedPrimitive->SetCollisionEnabled(IsIgnoringCollision() ? ECollisionEnabled::QueryAndProbe : ECollisionEnabled::QueryAndPhysics);
 }
 
 
+// Called every physic sim frame
 void UModularMoverComponent::AsyncPhysicsTickComponent(float DeltaTime, float SimTime)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("AsyncPhysicsTickComponent");
@@ -118,12 +122,27 @@ void UModularMoverComponent::AsyncPhysicsTickComponent(float DeltaTime, float Si
 			const FString ThreadName = FThreadManager::Get().GetThreadName(ThreadId);
 			UKismetSystemLibrary::PrintString(this, FString::Printf(TEXT("AsyncPhysicsTickComponent at %f FPS from %s"), UConversionToolbox::DeltaTimeToFPS(DeltaTime), *ThreadName)
 			                                  , true, false, FColor::Red, 0, "ModeName");
-			const FTransform bodyTransform = BodyInstance->GetUnrealWorldTransform();
-			BodyInstance->SetCollisionEnabled(IsIgnoringCollision() ? ECollisionEnabled::QueryAndProbe : ECollisionEnabled::QueryAndPhysics);
-			EvaluateMovementDiff(BodyInstance);
+			FMomentum currentMomentum;
+			currentMomentum.Transform = UPhysicToolbox::GetRigidBodyTransform(BodyInstance);
+			currentMomentum.LinearVelocity = UPhysicToolbox::GetRigidBodyLinearVelocity(BodyInstance);
+			currentMomentum.AngularVelocity = UPhysicToolbox::GetRigidBodyAngularVelocity(BodyInstance);
+			currentMomentum.Mass = GetMass();
+			currentMomentum.Gravity = _lastGravity;
 
-			FMechanicProperties move = DebugMovement;
-			//BodyMomentum.Transform = bodyTransform;
+			EvaluateMovementDiff(currentMomentum.Transform);
+
+			FMechanicProperties move = FMechanicProperties();
+			// TODO: Update Blend Contingent Moves Mechanic Properties
+			if (ContingentMoveState.IsValidIndex(0) && _subSystem)
+			{
+				if (auto MovementMode = _subSystem->GetContingentMoveObject(ContingentMoveState[0].BaseInfos.ModeName))
+				{
+					move = MovementMode->ProcessMovement(currentMomentum, _movementInput, _inputPool, DeltaTime);
+				}
+			}
+			// TODO: Update Blend transient Moves Mechanic Properties
+
+			_lastGravity = move.Gravity;
 			MoveBody(BodyInstance, move, DeltaTime);
 		}
 	}
@@ -131,9 +150,9 @@ void UModularMoverComponent::AsyncPhysicsTickComponent(float DeltaTime, float Si
 	Super::AsyncPhysicsTickComponent(DeltaTime, SimTime);
 }
 
-void UModularMoverComponent::EvaluateMovementSurface(const FTransform Transform, TArray<FExpandedHitResult> Surfaces)
+void UModularMoverComponent::EvaluateMovementOnSurfaces(const FTransform Transform, TArray<FExpandedHitResult> Surfaces)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE_STR("EvaluateMovementSurface");
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("EvaluateMovementOnSurfaces");
 	if (DebugMode == EDebugMode::SurfaceDetection)
 	{
 		UKismetSystemLibrary::DrawDebugSphere(this, Transform.GetLocation(), 25, 8);
@@ -141,10 +160,131 @@ void UModularMoverComponent::EvaluateMovementSurface(const FTransform Transform,
 		for (int i = 0; i < Surfaces.Num(); i++)
 		{
 			if (Surfaces[i].HitResult.GetComponent())
-				UDebugToolbox::DrawDebugCircleOnHit(Surfaces[i].HitResult, 40, FColor::White, Surfaces[i].HitResult.GetComponent()->GetWorld()->DeltaTimeSeconds, 0.5);
+				UKismetSystemLibrary::DrawDebugSphere(this, Surfaces[i].HitResult.ImpactPoint, 10, 8);
+			//UDebugToolbox::DrawDebugCircleOnHit(Surfaces[i].HitResult, 40, FColor::White, Surfaces[i].HitResult.GetComponent()->GetWorld()->DeltaTimeSeconds, 0.5);
 		}
 	}
 }
+
+
+#pragma region Inputs
+
+
+void UModularMoverComponent::MoveComponent(const FVector Movement)
+{
+	_movementInput = Movement;
+}
+
+void UModularMoverComponent::AddVectorInput(const FName InputName, const FVector Vector, const float LifeTime)
+{
+	if (_inputPool.InputMap.Contains(InputName))
+	{
+		_inputPool.InputMap[InputName].LifeTime += LifeTime;
+		_inputPool.InputMap[InputName].Property = Vector;
+	}
+	else
+	{
+		FMoverInput input;
+		input.Property = Vector;
+		input.Type = EInputType::Vector;
+		input.LifeTime = LifeTime;
+		_inputPool.InputMap.Add(InputName, input);
+	}
+}
+
+void UModularMoverComponent::AddRotationInput(const FName InputName, const FRotator Rotation, const float LifeTime)
+{
+	if (_inputPool.InputMap.Contains(InputName))
+	{
+		_inputPool.InputMap[InputName].LifeTime += LifeTime;
+		_inputPool.InputMap[InputName].Property = FVector(Rotation.Pitch, Rotation.Yaw, Rotation.Roll);
+	}
+	else
+	{
+		FMoverInput input;
+		input.Property = FVector(Rotation.Pitch, Rotation.Yaw, Rotation.Roll);
+		input.Type = EInputType::Rotation;
+		input.LifeTime = LifeTime;
+		_inputPool.InputMap.Add(InputName, input);
+	}
+}
+
+void UModularMoverComponent::AddValueInput(const FName InputName, const float Value, const float LifeTime)
+{
+	if (_inputPool.InputMap.Contains(InputName))
+	{
+		_inputPool.InputMap[InputName].LifeTime += LifeTime;
+		_inputPool.InputMap[InputName].Property = FVector(Value, 0, 0);
+	}
+	else
+	{
+		FMoverInput input;
+		input.Property = FVector(Value, 0, 0);
+		input.Type = EInputType::Rotation;
+		input.LifeTime = LifeTime;
+		_inputPool.InputMap.Add(InputName, input);
+	}
+}
+
+void UModularMoverComponent::AddTriggerInput(const FName InputName, const float LifeTime)
+{
+	if (_inputPool.InputMap.Contains(InputName))
+	{
+		_inputPool.InputMap[InputName].LifeTime += LifeTime;
+		_inputPool.InputMap[InputName].Property = FVector(1, 0, 0);
+	}
+	else
+	{
+		FMoverInput input;
+		input.Property = FVector(1, 0, 0);
+		input.Type = EInputType::Rotation;
+		input.LifeTime = LifeTime;
+		_inputPool.InputMap.Add(InputName, input);
+	}
+}
+
+bool UModularMoverComponent::ReadVectorInput(const FName InputName, FVector& OutVector) const
+{
+	return UStructExtension::ReadVectorInput(_inputPool, InputName, OutVector);
+}
+
+bool UModularMoverComponent::ReadRotationInput(const FName InputName, FRotator& OutRotation) const
+{
+	return UStructExtension::ReadRotationInput(_inputPool, InputName, OutRotation);
+}
+
+bool UModularMoverComponent::ReadValueInput(const FName InputName, float& OutValue) const
+{
+	return UStructExtension::ReadValueInput(_inputPool, InputName, OutValue);
+}
+
+bool UModularMoverComponent::ReadTriggerInput(const FName InputName, bool& OutTrigger) const
+{
+	return UStructExtension::ReadTriggerInput(_inputPool, InputName, OutTrigger);
+}
+
+void UModularMoverComponent::UpdateInputs(float deltaTime)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("UpdateInputs");
+	if (_inputPool.InputMap.Num() <= 0)
+		return;
+	_inputClearList.Empty();
+	for (auto item : _inputPool.InputMap)
+	{
+		_inputPool.InputMap[item.Key].LifeTime -= deltaTime;
+		if (_inputPool.InputMap[item.Key].LifeTime <= 0)
+			_inputClearList.Add(item.Key);
+	}
+	if (_inputClearList.Num() > 0)
+	{
+		for (auto entry : _inputClearList)
+			_inputPool.InputMap.Remove(entry);
+		_inputClearList.Empty();
+	}
+}
+
+
+#pragma endregion
 
 
 #pragma region Physic
@@ -183,14 +323,11 @@ float UModularMoverComponent::GetCurrentScanSurfaceOffset() const
 }
 
 
-void UModularMoverComponent::EvaluateMovementDiff(const FBodyInstance* body)
+void UModularMoverComponent::EvaluateMovementDiff(const FTransform BodyTransform)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("EvaluateMovementDiff");
-	if (!body)
-		return;
-	const FTransform curTr = body->GetUnrealWorldTransform_AssumesLocked();
-	const FVector _curLocation = curTr.GetLocation();
-	const FQuat _curRotation = curTr.GetRotation();
+	const FVector _curLocation = BodyTransform.GetLocation();
+	const FQuat _curRotation = BodyTransform.GetRotation();
 	_lastLocation = _curLocation;
 	_lastRotation = _curRotation;
 	const FQuat diff = (_curRotation.Inverse() * _lastRotation_trigger);
@@ -200,7 +337,7 @@ void UModularMoverComponent::EvaluateMovementDiff(const FBodyInstance* body)
 	if ((_curLocation - _lastLocation_trigger).Length() > MoveTriggerTolerance
 		|| FMath::RadiansToDegrees(angle) > RotateTriggerTolerance)
 	{
-		OnComponentMoved.Broadcast(this, curTr);
+		OnComponentMoved.Broadcast(this, BodyTransform);
 		_lastLocation_trigger = _curLocation;
 		_lastRotation_trigger = _curRotation;
 	}
@@ -245,7 +382,7 @@ void UModularMoverComponent::OnMoveCheck(UModularMoverComponent* Mover, FTransfo
 	{
 		Transform.SetLocation(location);
 	});
-	EvaluateMovementSurface(Transform, surfaceHits);
+	EvaluateMovementOnSurfaces(Transform, surfaceHits);
 }
 
 
@@ -264,7 +401,7 @@ void UModularMoverComponent::OnMainSurfaceCheckDone(const FTraceHandle& TraceHan
 	{
 		transform.SetLocation(location);
 	});
-	EvaluateMovementSurface(transform, outHitResults);
+	EvaluateMovementOnSurfaces(transform, outHitResults);
 }
 
 
@@ -428,36 +565,109 @@ void UModularMoverComponent::FixOverlapHits(int& maxDepth, const FTransform Tran
 
 #pragma endregion
 
+#pragma region Movement Mode
+
+
+void UModularMoverComponent::AddContingentMoveMode(TSubclassOf<UBaseContingentMove> Class)
+{
+	if (!_subSystem)
+		return;
+	FContingentMoveInfos NewMoveInfos;
+	if (_subSystem->AddContingentLibrary(NewMoveInfos, Class))
+	{
+		int index = -1;
+		if (ContingentMoveState.Num() > 0)
+		{
+			index = ContingentMoveState.IndexOfByPredicate([NewMoveInfos](const FContingentMoveInfos& info)-> bool
+			{
+				return info.BaseInfos.ModeName == NewMoveInfos.BaseInfos.ModeName;
+			});
+		}
+		if (!ContingentMoveState.IsValidIndex(index))
+		{
+			ContingentMoveState.Add(NewMoveInfos);
+		}
+	}
+}
+
+void UModularMoverComponent::RemoveContingentMoveMode(FName MoveName)
+{
+	if (!_subSystem)
+		return;
+	if (_subSystem->RemoveContingentLibrary(MoveName))
+	{
+		if (ContingentMoveState.Num() <= 0)
+			return;
+		const int index = ContingentMoveState.IndexOfByPredicate([MoveName](const FContingentMoveInfos& infos)-> bool
+		{
+			return infos.BaseInfos.ModeName == MoveName;
+		});
+		if (ContingentMoveState.IsValidIndex(index))
+		{
+			ContingentMoveState.RemoveAt(index);
+		}
+	}
+}
+
+void UModularMoverComponent::AddTransientMoveMode(TSubclassOf<UBaseTransientMove> Class)
+{
+	if (!_subSystem)
+		return;
+	FTransientMoveInfos NewMoveInfos;
+	if (_subSystem->AddTransientLibrary(NewMoveInfos, Class))
+	{
+		int index = -1;
+		if (TransientMoveState.Num() > 0)
+		{
+			index = TransientMoveState.IndexOfByPredicate([NewMoveInfos](const FTransientMoveInfos& info)-> bool
+			{
+				return info.BaseInfos.ModeName == NewMoveInfos.BaseInfos.ModeName;
+			});
+		}
+		if (!TransientMoveState.IsValidIndex(index))
+		{
+			TransientMoveState.Add(NewMoveInfos);
+		}
+	}
+}
+
+void UModularMoverComponent::RemoveTransientMoveMode(FName MoveName)
+{
+	if (!_subSystem)
+		return;
+	if (_subSystem->RemoveTransientLibrary(MoveName))
+	{
+		if (TransientMoveState.Num() <= 0)
+			return;
+		const int index = TransientMoveState.IndexOfByPredicate([MoveName](const FTransientMoveInfos& infos)-> bool
+		{
+			return infos.BaseInfos.ModeName == MoveName;
+		});
+		if (TransientMoveState.IsValidIndex(index))
+		{
+			TransientMoveState.RemoveAt(index);
+		}
+	}
+}
+
+
+#pragma endregion
+
+
 #pragma region Flow Mode
 
 // Stand alone mode
 
 #pragma endregion
 
+
 #pragma region Movement
 
 
-FVector UModularMoverComponent::ComputeLinearVelocity(const FLinearMechanic AttemptedMovement, const FVector currentLinearVelocity, const float mass, const float deltaTime,
-                                                      bool UseReduction)
+FVector UModularMoverComponent::ComputeLinearVelocity(const FLinearMechanic AttemptedMovement, const FVector currentLinearVelocity, const float deltaTime, bool UseReduction)
 {
-	FVector velocity = AttemptedMovement.InstantMode
-		                   ? AttemptedMovement.Acceleration.GetSafeNormal() * AttemptedMovement.TerminalVelocity
-		                   : AttemptedMovement.Acceleration * deltaTime + currentLinearVelocity;
-	//Drag
-	if (!AttemptedMovement.InstantMode)
-	{
-		FVector vel = currentLinearVelocity;
-		const double velSqr = vel.SquaredLength();
-		if (vel.Normalize())
-		{
-			float drag = (2 * AttemptedMovement.Acceleration.Length() * mass) / (AttemptedMovement.TerminalVelocity * AttemptedMovement.TerminalVelocity);
-			if (drag <= 0)
-				drag = AttemptedMovement.StaticDrag > 0
-					       ? AttemptedMovement.StaticDrag
-					       : (2 * AttemptedMovement.TerminalVelocity * mass) / (AttemptedMovement.TerminalVelocity * AttemptedMovement.TerminalVelocity);
-			velocity -= (vel * ((velSqr * drag) / (2 * mass)) * deltaTime).GetClampedToMaxSize(velocity.Length());
-		}
-	}
+	const float speed = AttemptedMovement.Acceleration.SquaredLength() > 0 ? AttemptedMovement.Acceleration.Length() : AttemptedMovement.DecelerationSpeed;
+	FVector velocity = FMath::VInterpConstantTo(currentLinearVelocity, AttemptedMovement.Acceleration.GetSafeNormal() * AttemptedMovement.TerminalVelocity, deltaTime, speed);
 
 	if (UseReduction)
 		velocity -= currentLinearVelocity;
@@ -466,7 +676,7 @@ FVector UModularMoverComponent::ComputeLinearVelocity(const FLinearMechanic Atte
 }
 
 FVector UModularMoverComponent::ComputeAngularVelocity(FAngularMechanic AttemptedMovement, FVector CurrentAngularVelocity, const FQuat CurrentOrientation, FVector Gravity,
-                                                       const float deltaTime, bool UseReduction)
+                                                       const float deltaTime, bool UseReduction, const FRotator OffsetRotation)
 {
 	if (!Gravity.Normalize())
 		Gravity = FVector::DownVector;
@@ -474,13 +684,18 @@ FVector UModularMoverComponent::ComputeAngularVelocity(FAngularMechanic Attempte
 	const float rotSpeed = angularPart.LookOrientation.Length();
 	if (angularPart.OrientationDiff.IsIdentity() && angularPart.LookOrientation.Normalize())
 	{
-		const FQuat targetRot = UKismetMathLibrary::MakeRotFromZX(-Gravity.GetSafeNormal(), angularPart.LookOrientation).Quaternion();
-		FQuat desiredOrientation = FQuat::Slerp(CurrentOrientation, targetRot, 1); // FMath::Clamp(rotSpeed * deltaTime, 0, 1));
-		desiredOrientation.EnforceShortestArcWith(CurrentOrientation);
-		angularPart.OrientationDiff = desiredOrientation * CurrentOrientation.Inverse();
+		if (!FMath::IsNearlyEqual(angularPart.LookOrientation | CurrentOrientation.Vector(), 1, 0.0001))
+		{
+			const FQuat targetRot = UKismetMathLibrary::MakeRotFromZX(-Gravity.GetSafeNormal(), angularPart.LookOrientation).Quaternion();
+			FQuat desiredOrientation = targetRot;
+			if (!FMath::IsNearlyEqual(targetRot.Vector() | CurrentOrientation.Vector(), 1, 0.0001))
+				desiredOrientation = FMath::QInterpConstantTo(CurrentOrientation, targetRot, deltaTime, FMath::DegreesToRadians(rotSpeed));
+			desiredOrientation.EnforceShortestArcWith(CurrentOrientation);
+			angularPart.OrientationDiff = desiredOrientation * CurrentOrientation.Inverse();
+		}
 	}
 
-	FVector result = GetAngularVelocity(CurrentOrientation, angularPart, Gravity);
+	FVector result = GetAngularVelocity(CurrentOrientation, angularPart, Gravity, OffsetRotation) / deltaTime;
 
 	if (UseReduction)
 		result -= CurrentAngularVelocity;
@@ -503,7 +718,7 @@ void UModularMoverComponent::MoveBody(FBodyInstance* Body, const FMechanicProper
 
 	//Linear Part
 	{
-		linearMovement = ComputeLinearVelocity(movement.Linear, currentLinearVelocity, GetMass(), Delta, true);
+		linearMovement = ComputeLinearVelocity(movement.Linear, currentLinearVelocity, Delta, true);
 
 		if (DebugMode == EDebugMode::LinearMovement)
 		{
@@ -518,8 +733,7 @@ void UModularMoverComponent::MoveBody(FBodyInstance* Body, const FMechanicProper
 
 	//Angular Part
 	{
-		UKismetSystemLibrary::DrawDebugArrow(this, initialTransform.GetLocation(), initialTransform.GetLocation() + movement.Angular.LookOrientation.GetSafeNormal() * 200, 200, FColor::Black);
-		angularMovement = ComputeAngularVelocity(movement.Angular, currentAngularVelocity, initialTransform.GetRotation(), movement.Gravity, Delta, true);
+		angularMovement = ComputeAngularVelocity(movement.Angular, currentAngularVelocity, initialTransform.GetRotation(), movement.Gravity, Delta, true, RotationOffset);
 
 		if (DebugMode == EDebugMode::AngularMovement)
 		{
@@ -530,18 +744,13 @@ void UModularMoverComponent::MoveBody(FBodyInstance* Body, const FMechanicProper
 		}
 	}
 
-	//Handle damping values
-	Body->LinearDamping = 0;
-	Body->AngularDamping = 0;
-	Body->UpdateDampingProperties();
-
 	//Wake up and apply movement
-	Body->WakeInstance();
 	UPhysicToolbox::RigidBodyAddImpulse(Body, linearMovement, true);
-	UPhysicToolbox::RigidBodyAddAngularImpulseInRadians(Body,UPhysicToolbox::OrientationDiffToAngularVelocity(initialTransform.GetRotation(), movement.Angular.LookOrientation.GetSafeNormal().ToOrientationQuat()), true);// angularMovement, true);
+	UPhysicToolbox::RigidBodyAddAngularImpulseInRadians(Body, angularMovement, true);
 }
 
-bool UModularMoverComponent::GetAngularOrientation(FQuat& Orientation, const FQuat BodyOrientation, const FAngularMechanic angularMechanic, const FVector Gravity)
+bool UModularMoverComponent::GetAngularOrientation(FQuat& Orientation, const FQuat BodyOrientation, const FAngularMechanic angularMechanic, const FVector Gravity,
+                                                   const FRotator OffsetRotation)
 {
 	Orientation = BodyOrientation;
 	FVector gravityUp = -Gravity;
@@ -561,7 +770,7 @@ bool UModularMoverComponent::GetAngularOrientation(FQuat& Orientation, const FQu
 		}
 		else
 		{
-			virtualFwdDir = -virtualFwdDir.Rotation().Quaternion().GetAxisZ();
+			virtualFwdDir = BodyOrientation.GetAxisX(); // -virtualFwdDir.Rotation().Quaternion().GetAxisZ();
 			FVector::CreateOrthonormalBasis(virtualFwdDir, virtualRightDir, gravityUp);
 			virtualFwdDir.Normalize();
 		}
@@ -573,22 +782,23 @@ bool UModularMoverComponent::GetAngularOrientation(FQuat& Orientation, const FQu
 		virtualFwdDir = desiredRotator.Quaternion().GetAxisX();
 		virtualRightDir = desiredRotator.Quaternion().GetAxisY();
 
-		Orientation = desiredRotator.Quaternion();
+		Orientation = desiredRotator.Quaternion() * OffsetRotation.Quaternion();
 	}
 
 
 	return true;
 }
 
-FVector UModularMoverComponent::GetAngularVelocity(const FQuat BodyOrientation, const FAngularMechanic angularMechanic, const FVector Gravity)
+FVector UModularMoverComponent::GetAngularVelocity(const FQuat BodyOrientation, const FAngularMechanic angularMechanic, const FVector Gravity, const FRotator OffsetRotation)
 {
 	FQuat orientation;
-	if (!GetAngularOrientation(orientation, BodyOrientation, angularMechanic, Gravity))
+	if (!GetAngularOrientation(orientation, BodyOrientation, angularMechanic, Gravity, OffsetRotation))
 		return FVector(0);
 	return UPhysicToolbox::OrientationDiffToAngularVelocity(BodyOrientation, orientation);
 }
 
-TArray<FMomentum> UModularMoverComponent::GetTrajectory(const int SampleCount, const FMechanicProperties inputMovement, const FMomentum currentMomentum, const float timeStep)
+TArray<FMomentum> UModularMoverComponent::GetTrajectory(const int SampleCount, const FMechanicProperties inputMovement, const FMomentum currentMomentum, const float timeStep,
+                                                        const FRotator OffsetRotation)
 {
 	TArray<FMomentum> result;
 	result.Add(currentMomentum);
@@ -600,15 +810,26 @@ TArray<FMomentum> UModularMoverComponent::GetTrajectory(const int SampleCount, c
 
 		//Linear part
 		{
-			iteration.LinearVelocity = ComputeLinearVelocity(inputMovement.Linear, lastItem.LinearVelocity, iteration.Mass, timeStep);
+			iteration.LinearVelocity = ComputeLinearVelocity(inputMovement.Linear, lastItem.LinearVelocity, timeStep);
 			iteration.Transform.SetLocation(lastItem.Transform.GetLocation() + iteration.LinearVelocity * timeStep);
 		}
 
 		//Angular part
 		{
-			iteration.AngularVelocity = ComputeAngularVelocity(inputMovement.Angular, lastItem.AngularVelocity, lastItem.Transform.GetRotation(), inputMovement.Gravity, timeStep);
+			iteration.AngularVelocity = ComputeAngularVelocity(inputMovement.Angular, lastItem.AngularVelocity, lastItem.Transform.GetRotation(), inputMovement.Gravity, timeStep, false,
+			                                                   OffsetRotation);
 			const FQuat axisAngleRot = FQuat(iteration.AngularVelocity.GetSafeNormal(), iteration.AngularVelocity.Length() * timeStep);
-			iteration.Transform.SetRotation(lastItem.Transform.GetRotation() * axisAngleRot);
+			FQuat newRot = lastItem.Transform.GetRotation() * axisAngleRot;
+			const float newDot = (newRot.Vector() | inputMovement.Angular.LookOrientation.GetSafeNormal());
+			const float oldDot = (lastItem.Transform.GetRotation().Vector() | inputMovement.Angular.LookOrientation.GetSafeNormal());
+			if (!inputMovement.Angular.OrientationDiff.IsIdentity() || (newDot != 0 && oldDot != 0 && newDot >= oldDot))
+			{
+				iteration.Transform.SetRotation(newRot);
+			}
+			else
+			{
+				iteration.Transform.SetRotation(lastItem.Transform.GetRotation());
+			}
 		}
 
 		result.Add(iteration);

@@ -23,6 +23,16 @@ enum class EDebugMode: uint8
 	AngularMovement,
 };
 
+UENUM(BlueprintType)
+enum class EInputType: uint8
+{
+	None,
+	Vector,
+	Value,
+	Trigger,
+	Rotation,
+};
+
 #pragma endregion
 
 #pragma region Structs
@@ -275,17 +285,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
 	FVector Acceleration = FVector(0);
 
-	// Apply velocity instantaneously, ignoring acceleration. deceleration will also be instantaneous.
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
-	bool InstantMode = false;
-
 	// The terminal velocity (cm/s)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
 	float TerminalVelocity = 0;
 
-	// The drag when force or Terminal Velocity are zero
+	// The Deceleration speed (cm/s)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
-	float StaticDrag = 1;
+	float DecelerationSpeed = 100;
 };
 
 USTRUCT(BlueprintType)
@@ -294,7 +300,7 @@ struct FAngularMechanic
 	GENERATED_BODY()
 
 public:
-	// The Look rotation, used to calculate Orientation Diff whenever it is Identity Quaternion. The lenght of the vector will be the rotation speed
+	// The Look rotation, used to calculate Orientation Diff whenever it is Identity Quaternion. The lenght of the vector will be the rotation speed (Deg/s)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
 	FVector LookOrientation = FVector(0);
 
@@ -336,8 +342,57 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
 	float Mass = 1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
+	FVector Gravity = FVector(0, 0, -1);
 };
 
+USTRUCT(BlueprintType)
+struct FMoverInput
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
+	FVector Property = FVector(0);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
+	EInputType Type = EInputType::None;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
+	float LifeTime = 0;
+};
+
+USTRUCT(BlueprintType)
+struct FMoverInputPool
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
+	TMap<FName, FMoverInput> InputMap;
+};
+
+
+// Expansion Functions for structures
+UCLASS()
+class MODULARMOVER_API UStructExtension : public UBlueprintFunctionLibrary
+{
+	GENERATED_BODY()
+
+public:
+	UFUNCTION(BlueprintPure, Category = "StructExtension|Inputs", meta=(BlueprintThreadSafe))
+	static bool ReadVectorInput(const FMoverInputPool InputPool, const FName InputName, UPARAM(ref) FVector& OutVector);
+
+	UFUNCTION(BlueprintPure, Category = "StructExtension|Inputs", meta=(BlueprintThreadSafe))
+	static bool ReadRotationInput(const FMoverInputPool InputPool, const FName InputName, UPARAM(ref) FRotator& OutRotation);
+
+	UFUNCTION(BlueprintPure, Category = "StructExtension|Inputs", meta=(BlueprintThreadSafe))
+	static bool ReadValueInput(const FMoverInputPool InputPool, const FName InputName, UPARAM(ref) float& OutValue);
+
+	UFUNCTION(BlueprintPure, Category = "StructExtension|Inputs", meta=(BlueprintThreadSafe))
+	static bool ReadTriggerInput(const FMoverInputPool InputPool, const FName InputName, UPARAM(ref) bool& OutTrigger);
+};
 
 #pragma endregion
 
@@ -364,6 +419,11 @@ public:
 
 	UFUNCTION(BlueprintPure, Category="Modular Mover | Mover Movement Mode", meta = (CompactNodeTitle = "ValidState", BlueprintThreadSafe))
 	bool IsValid() const;
+
+	UFUNCTION(BlueprintImplementableEvent, Category="Modular Mover | Mover Movement Mode", meta = (BlueprintThreadSafe))
+	FMechanicProperties ProcessMovement(const FMomentum CurrentMomentum, const FVector MoveInput, const FMoverInputPool Inputs, const float DeltaTime) const;
+	
+	virtual FMechanicProperties ProcessMovement_Implementation(const FMomentum CurrentMomentum, const FVector MoveInput, const FMoverInputPool Inputs, const float DeltaTime) const;
 };
 
 

@@ -18,10 +18,15 @@ void UModularMoverSubsystem::RegisterComponent(UModularMoverComponent* mover)
 	UpdateChunk(mover, mover->GetOwner()->GetActorTransform());
 	mover->OnComponentMoved.AddUObject(this, &UModularMoverSubsystem::UpdateChunk);
 	for (int i = 0; i < mover->ContingentMoveClasses.Num(); i++)
-		UpdateContingentLibrary("", false, mover->ContingentMoveClasses[i], &mover->ContingentMoveState);
+	{
+		mover->AddContingentMoveMode(mover->ContingentMoveClasses[i]);
+	}
 	for (int i = 0; i < mover->TransientMoveClasses.Num(); i++)
-		UpdateTransientLibrary("", false, mover->TransientMoveClasses[i], &mover->TransientMoveState);
+	{
+		mover->AddTransientMoveMode(mover->TransientMoveClasses[i]);
+	}
 }
+
 
 void UModularMoverSubsystem::UnRegisterComponent(UModularMoverComponent* mover)
 {
@@ -32,9 +37,9 @@ void UModularMoverSubsystem::UnRegisterComponent(UModularMoverComponent* mover)
 		return;
 	_registeredMovers.RemoveAt(index);
 	for (int i = 0; i < mover->ContingentMoveState.Num(); i++)
-		UpdateContingentLibrary(mover->ContingentMoveState[i].BaseInfos.ModeName, true);
+		mover->RemoveContingentMoveMode(mover->ContingentMoveState[i].BaseInfos.ModeName);
 	for (int i = 0; i < mover->TransientMoveState.Num(); i++)
-		UpdateTransientLibrary(mover->TransientMoveState[i].BaseInfos.ModeName, true);
+		mover->RemoveTransientMoveMode(mover->TransientMoveState[i].BaseInfos.ModeName);
 }
 
 
@@ -83,102 +88,85 @@ void UModularMoverSubsystem::UpdateChunk(UModularMoverComponent* mover, FTransfo
 	}
 }
 
-
-void UModularMoverSubsystem::UpdateContingentLibrary(FName MoveName, bool remove, TSubclassOf<UBaseContingentMove> ModeClass, TArray<FContingentMoveInfos>* liveListInfos)
+bool UModularMoverSubsystem::AddContingentLibrary(FContingentMoveInfos& OutMoveInfos, TSubclassOf<UBaseContingentMove> ModeClass)
 {
-	if (remove)
+	if (!ModeClass)
+		return false;
+	if (const auto instance = Cast<UBaseContingentMove>(ModeClass->GetDefaultObject()))
 	{
-		if (_contigentModeLibrary.Contains(MoveName))
+		if (instance->ModeName.IsNone())
+			return false;
+		if (_contigentModeLibrary.Contains(instance->ModeName))
 		{
-			_contigentModeLibrary[MoveName].ReferenceCount--;
-			if (_contigentModeLibrary[MoveName].ReferenceCount <= 0)
-			{
-				_contigentModeLibrary.Remove(MoveName);
-				if (liveListInfos)
-				{
-					const int index = liveListInfos->IndexOfByPredicate([MoveName](const FContingentMoveInfos& infos)-> bool { return infos.BaseInfos.ModeName == MoveName; });
-					if (liveListInfos->IsValidIndex(index))
-					{
-						liveListInfos->RemoveAt(index);
-					}
-				}
-			}
+			_contigentModeLibrary[instance->ModeName].ReferenceCount++;
 		}
+		else
+		{
+			const FMoveModeReference reference = FMoveModeReference(instance);
+			_contigentModeLibrary.Add(instance->ModeName, reference);
+		}
+		
+		OutMoveInfos = FContingentMoveInfos(instance);
+		return true;
 	}
-	else
-	{
-		if (_contigentModeLibrary.Contains(MoveName))
-		{
-			_contigentModeLibrary[MoveName].ReferenceCount++;
-		}
-		else if (ModeClass)
-		{
-			if (const auto instance = Cast<UBaseContingentMove>(ModeClass->GetDefaultObject()))
-			{
-				if (instance->ModeName.IsNone())
-					return;
-				const FMoveModeReference reference = FMoveModeReference(instance);
-				_contigentModeLibrary.Add(instance->ModeName, reference);
-				if (liveListInfos)
-				{
-					const int index = liveListInfos->IndexOfByPredicate([instance](const FContingentMoveInfos& infos)-> bool { return infos.BaseInfos.ModeName == instance->ModeName; });
-					if (!liveListInfos->IsValidIndex(index))
-					{
-						liveListInfos->Add(FContingentMoveInfos(instance));
-					}
-				}
-			}
-		}
-	}
+	
+	return false;
 }
 
 
-void UModularMoverSubsystem::UpdateTransientLibrary(FName MoveName, bool remove, TSubclassOf<UBaseTransientMove> ModeClass, TArray<FTransientMoveInfos>* liveListInfos)
+bool UModularMoverSubsystem::RemoveContingentLibrary(FName ModeName)
 {
-	if (remove)
+	if (_contigentModeLibrary.Contains(ModeName))
 	{
-		if (_transientModeLibrary.Contains(MoveName))
+		_contigentModeLibrary[ModeName].ReferenceCount--;
+		if (_contigentModeLibrary[ModeName].ReferenceCount <= 0)
 		{
-			_transientModeLibrary[MoveName].ReferenceCount--;
-			if (_transientModeLibrary[MoveName].ReferenceCount <= 0)
-			{
-				_transientModeLibrary.Remove(MoveName);
-				if (liveListInfos)
-				{
-					const int index = liveListInfos->IndexOfByPredicate([MoveName](const FTransientMoveInfos& infos)-> bool { return infos.BaseInfos.ModeName == MoveName; });
-					if (liveListInfos->IsValidIndex(index))
-					{
-						liveListInfos->RemoveAt(index);
-					}
-				}
-			}
+			_contigentModeLibrary.Remove(ModeName);
+			return true;
 		}
 	}
-	else
+
+	return false;
+}
+
+bool UModularMoverSubsystem::AddTransientLibrary(FTransientMoveInfos& OutMoveInfos, TSubclassOf<UBaseTransientMove> ModeClass)
+{
+	if (!ModeClass)
+		return false;
+	if (const auto instance = Cast<UBaseTransientMove>(ModeClass->GetDefaultObject()))
 	{
-		if (_transientModeLibrary.Contains(MoveName))
+		if (instance->ModeName.IsNone())
+			return false;
+		if (_transientModeLibrary.Contains(instance->ModeName))
 		{
-			_transientModeLibrary[MoveName].ReferenceCount++;
+			_transientModeLibrary[instance->ModeName].ReferenceCount++;
 		}
-		else if (ModeClass)
+		else
 		{
-			if (const auto instance = Cast<UBaseTransientMove>(ModeClass->GetDefaultObject()))
-			{
-				if (instance->ModeName.IsNone())
-					return;
-				const FMoveModeReference reference = FMoveModeReference(instance);
-				_transientModeLibrary.Add(instance->ModeName, reference);
-				if (liveListInfos)
-				{
-					const int index = liveListInfos->IndexOfByPredicate([instance](const FTransientMoveInfos& infos)-> bool { return infos.BaseInfos.ModeName == instance->ModeName; });
-					if (!liveListInfos->IsValidIndex(index))
-					{
-						liveListInfos->Add(FTransientMoveInfos(instance));
-					}
-				}
-			}
+			const FMoveModeReference reference = FMoveModeReference(instance);
+			_transientModeLibrary.Add(instance->ModeName, reference);
+		}
+		
+		OutMoveInfos = FTransientMoveInfos(instance);
+		return true;
+	}
+	
+	return false;
+}
+
+bool UModularMoverSubsystem::RemoveTransientLibrary(FName ModeName)
+{
+	if (_transientModeLibrary.Contains(ModeName))
+	{
+		_transientModeLibrary[ModeName].ReferenceCount--;
+		if (_transientModeLibrary[ModeName].ReferenceCount <= 0)
+		{
+			_transientModeLibrary.Remove(ModeName);
+			return true;
 		}
 	}
+
+	return false;
 }
 
 
@@ -200,4 +188,18 @@ void UModularMoverSubsystem::Tick(float DeltaTime)
 TStatId UModularMoverSubsystem::GetStatId() const
 {
 	return GetStatID();
+}
+
+TSoftObjectPtr<UBaseMoverMovementMode> UModularMoverSubsystem::GetContingentMoveObject(const FName ModeName)
+{
+	if (!_contigentModeLibrary.Contains(ModeName))
+		return {};
+	return _contigentModeLibrary[ModeName].MovementModeInstance;
+}
+
+TSoftObjectPtr<UBaseMoverMovementMode> UModularMoverSubsystem::GetTransientMoveObject(const FName ModeName)
+{
+	if (!_transientModeLibrary.Contains(ModeName))
+		return {};
+	return _transientModeLibrary[ModeName].MovementModeInstance;
 }

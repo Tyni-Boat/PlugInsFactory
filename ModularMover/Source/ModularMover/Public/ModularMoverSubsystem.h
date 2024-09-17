@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include <functional>
+
 #include "CoreMinimal.h"
 #include "TypesLibrary.h"
 #include "Subsystems/WorldSubsystem.h"
@@ -40,9 +42,13 @@ public:
 
 	void UpdateChunk(UModularMoverComponent* mover, FTransform newTransform);
 
-	void UpdateContingentLibrary(FName MoveName, bool remove = false, TSubclassOf<UBaseContingentMove> ModeClass = nullptr, TArray<FContingentMoveInfos>* liveListInfos = nullptr);
+	bool AddContingentLibrary(FContingentMoveInfos& OutMoveInfos, TSubclassOf<UBaseContingentMove> ModeClass = nullptr);
 	
-	void UpdateTransientLibrary(FName MoveName, bool remove = false, TSubclassOf<UBaseTransientMove> ModeClass = nullptr, TArray<FTransientMoveInfos>* liveListInfos = nullptr);
+	bool RemoveContingentLibrary(FName ModeName);
+
+	bool AddTransientLibrary(FTransientMoveInfos& OutMoveInfos, TSubclassOf<UBaseTransientMove> ModeClass = nullptr);
+	
+	bool RemoveTransientLibrary(FName ModeName);
 
 	void Initialize(FSubsystemCollectionBase& Collection) override;
 
@@ -51,4 +57,8 @@ public:
 	void Tick(float DeltaTime) override;
 
 	TStatId GetStatId() const override;
+
+	TSoftObjectPtr<UBaseMoverMovementMode> GetContingentMoveObject(const FName ModeName);
+
+	TSoftObjectPtr<UBaseMoverMovementMode> GetTransientMoveObject(const FName ModeName);
 };

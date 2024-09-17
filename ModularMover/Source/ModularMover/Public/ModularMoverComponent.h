@@ -51,7 +51,8 @@ protected:
 	bool FinalUnregistration();
 
 	// The reference to the current subsystem.
-	UModularMoverSubsystem* _subSystem = nullptr;
+	UPROPERTY()
+	TSoftObjectPtr<UModularMoverSubsystem> _subSystem = nullptr;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Default")
 	EDebugMode DebugMode = EDebugMode::None;
@@ -63,7 +64,60 @@ public:
 	virtual void AsyncPhysicsTickComponent(float DeltaTime, float SimTime) override;
 
 	// Evaluate continuous and instantaneous movement modes as well as Traversals
-	void EvaluateMovementSurface(const FTransform Transform, TArray<FExpandedHitResult> Surfaces);
+	void EvaluateMovementOnSurfaces(const FTransform Transform, TArray<FExpandedHitResult> Surfaces);
+
+
+#pragma region Inputs
+public:
+	// Set world space Move input to this Mover component
+	UFUNCTION(BlueprintCallable, Category="Inputs|Writing")
+	void MoveComponent(const FVector Movement);
+
+	// Add a Vector input. Add a life time to make it persist for the set duration (sec)
+	UFUNCTION(BlueprintCallable, Category="Inputs|Writing")
+	void AddVectorInput(const FName InputName, const FVector Vector, const float LifeTime = 0);
+
+	// Add a Rotation input. Add a life time to make it persist for the set duration (sec)
+	UFUNCTION(BlueprintCallable, Category="Inputs|Writing")
+	void AddRotationInput(const FName InputName, const FRotator Rotation, const float LifeTime = 0);
+
+	// Add a Value input. Add a life time to make it persist for the set duration (sec)
+	UFUNCTION(BlueprintCallable, Category="Inputs|Writing")
+	void AddValueInput(const FName InputName, const float Value, const float LifeTime = 0);
+
+	// Add a Trigger input. Add a life time to make it persist for the set duration (sec)
+	UFUNCTION(BlueprintCallable, Category="Inputs|Writing")
+	void AddTriggerInput(const FName InputName, const float LifeTime = 0);
+
+
+	// Read a Vector input if it exist.
+	UFUNCTION(BlueprintPure, Category="Inputs|Reading", meta=(BlueprintThreadSafe))
+	bool ReadVectorInput(const FName InputName, UPARAM(ref) FVector& OutVector) const;
+
+	// Read a Rotation input if it exist. 
+	UFUNCTION(BlueprintPure, Category="Inputs|Reading", meta=(BlueprintThreadSafe))
+	bool ReadRotationInput(const FName InputName, UPARAM(ref) FRotator& OutRotation) const;
+
+	// Read a Value input if it exist.
+	UFUNCTION(BlueprintPure, Category="Inputs|Reading", meta=(BlueprintThreadSafe))
+	bool ReadValueInput(const FName InputName, UPARAM(ref) float& OutValue) const;
+
+	// Read a Trigger input if it exist.
+	UFUNCTION(BlueprintPure, Category="Inputs|Reading", meta=(BlueprintThreadSafe))
+	bool ReadTriggerInput(const FName InputName, UPARAM(ref) bool& OutTrigger) const;
+
+protected:
+	UPROPERTY()
+	FVector _movementInput;
+	UPROPERTY()
+	FMoverInputPool _inputPool;
+	UPROPERTY()
+	TArray<FName> _inputClearList;
+
+	// Update inputs
+	void UpdateInputs(float deltaTime);
+
+#pragma endregion
 
 
 #pragma region Physic
@@ -122,6 +176,7 @@ protected:
 	FQuat _lastRotation_trigger;
 	FTraceDelegate _onMainSurfaceChk;
 	TMap<FTraceHandle, FTransform> _chkRequestMap;
+	FVector _lastGravity = FVector(0, 0, -1);
 
 
 	UFUNCTION(BlueprintPure, Category="Mover|Physic")
@@ -141,7 +196,7 @@ protected:
 	}
 
 	// Check movement diff and trigger on move events
-	void EvaluateMovementDiff(const FBodyInstance* body);
+	void EvaluateMovementDiff(const FTransform BodyTransform);
 
 	// Run the solver when ever moved
 	void OnMoveCheck(UModularMoverComponent* Mover, FTransform Transform);
@@ -163,11 +218,11 @@ protected:
 	                    std::function<void(UPrimitiveComponent*, FVector)> OnPhysicCompHit = {}) const;
 
 	// Calculate Linear velocity. UseReduction subtract the current Linear Velocity from the end result.
-	static FVector ComputeLinearVelocity(FLinearMechanic AttemptedMovement, FVector currentLinearVelocity, const float mass, const float deltaTime, bool UseReduction = false);
+	static FVector ComputeLinearVelocity(FLinearMechanic AttemptedMovement, FVector currentLinearVelocity, const float deltaTime, bool UseReduction = false);
 
 	// Calculate Angular velocity (Rad/s). UseReduction subtract the current Angular Velocity from the end result.
 	static FVector ComputeAngularVelocity(FAngularMechanic AttemptedMovement, FVector CurrentAngularVelocity, const FQuat CurrentOrientation, FVector Gravity, const float deltaTime,
-	                                      bool UseReduction = false);
+	                                      bool UseReduction = false, const FRotator OffsetRotation = FRotator(0));
 
 #pragma endregion
 
@@ -184,6 +239,15 @@ public:
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, category = "Mover|Movement Modes|Contingent")
 	TArray<FContingentMoveInfos> ContingentMoveState;
 
+
+	// Add a contingent move mode
+	UFUNCTION(BlueprintCallable, Category="Mover|Movement Modes|Contingent", meta=(NotBlueprintThreadSafe))
+	void AddContingentMoveMode(TSubclassOf<UBaseContingentMove> Class);
+
+	// Remove a contingent move mode
+	UFUNCTION(BlueprintCallable, Category="Mover|Movement Modes|Contingent", meta=(NotBlueprintThreadSafe))
+	void RemoveContingentMoveMode(FName MoveName);
+
 	// Transients ------------------------------------------------------------------------------------------------------------------------------------------
 
 public:
@@ -194,6 +258,15 @@ public:
 	// The states of each Transient move for this mover
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, category = "Mover|Movement Modes|Transient")
 	TArray<FTransientMoveInfos> TransientMoveState;
+	
+
+	// Add a Transient move mode
+	UFUNCTION(BlueprintCallable, Category="Mover|Movement Modes|Contingent", meta=(NotBlueprintThreadSafe))
+	void AddTransientMoveMode(TSubclassOf<UBaseTransientMove> Class);
+
+	// Remove a Transient move mode
+	UFUNCTION(BlueprintCallable, Category="Mover|Movement Modes|Contingent", meta=(NotBlueprintThreadSafe))
+	void RemoveTransientMoveMode(FName MoveName);
 
 	// Traversal ------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -207,25 +280,20 @@ public:
 
 #pragma region Movement
 
-	//UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Debug")
-	//FMomentum BodyMomentum = FMomentum();
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Debug")
-	FMechanicProperties DebugMovement;
-
-
 	// Move a body according to Movement
 	void MoveBody(FBodyInstance* Body, const FMechanicProperties movement, const float Delta) const;
 
 	// Get the orientation, keeping body upright.
-	static bool GetAngularOrientation(FQuat& Orientation, const FQuat BodyOrientation, const FAngularMechanic angularMechanic, const FVector Gravity);
+	static bool GetAngularOrientation(FQuat& Orientation, const FQuat BodyOrientation, const FAngularMechanic angularMechanic, const FVector Gravity,
+	                                  const FRotator OffsetRotation = FRotator(0));
 
 	// Calculate an Angular Velocity (Rad/s) to fit orientation, keeping body upright.
-	static FVector GetAngularVelocity(const FQuat BodyOrientation, const FAngularMechanic angularMechanic, const FVector Gravity);
+	static FVector GetAngularVelocity(const FQuat BodyOrientation, const FAngularMechanic angularMechanic, const FVector Gravity, const FRotator OffsetRotation = FRotator(0));
 
 	// Get the trajectory
 	UFUNCTION(BlueprintPure, Category="Mover|Movement")
-	static TArray<FMomentum> GetTrajectory(const int SampleCount, const FMechanicProperties inputMovement, const FMomentum currentMomentum, const float timeStep);
+	static TArray<FMomentum> GetTrajectory(const int SampleCount, const FMechanicProperties inputMovement, const FMomentum currentMomentum, const float timeStep,
+	                                       const FRotator OffsetRotation);
 
 #pragma endregion
 };

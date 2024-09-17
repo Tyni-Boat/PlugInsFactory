@@ -175,10 +175,42 @@ FTransientMoveInfos::FTransientMoveInfos(UBaseTransientMove* move)
 
 //------------------------------------------------------------------------------------------------------------------------
 
+bool UStructExtension::ReadVectorInput(const FMoverInputPool InputPool, const FName InputName, FVector& OutVector)
+{
+	if (!InputPool.InputMap.Contains(InputName))
+		return false;
+	OutVector = InputPool.InputMap[InputName].Property;
+	return true;
+}
+
+bool UStructExtension::ReadRotationInput(const FMoverInputPool InputPool, const FName InputName, FRotator& OutRotation)
+{
+	if (!InputPool.InputMap.Contains(InputName))
+		return false;
+	OutRotation = FRotator(InputPool.InputMap[InputName].Property.X, InputPool.InputMap[InputName].Property.Y, InputPool.InputMap[InputName].Property.Z);
+	return true;
+}
+
+bool UStructExtension::ReadValueInput(const FMoverInputPool InputPool, const FName InputName, float& OutValue)
+{
+	if (!InputPool.InputMap.Contains(InputName))
+		return false;
+	OutValue = InputPool.InputMap[InputName].Property.X;
+	return true;
+}
+
+bool UStructExtension::ReadTriggerInput(const FMoverInputPool InputPool, const FName InputName, bool& OutTrigger)
+{
+	if (!InputPool.InputMap.Contains(InputName))
+		return false;
+	OutTrigger = InputPool.InputMap[InputName].Property.X > 0;
+	return true;
+}
 
 #pragma endregion
 
 #pragma region Classes
+
 
 
 UBaseMoverMovementMode::UBaseMoverMovementMode()
@@ -188,6 +220,14 @@ UBaseMoverMovementMode::UBaseMoverMovementMode()
 bool UBaseMoverMovementMode::IsValid() const
 {
 	return ModeName != NAME_None && Priority >= 0;
+}
+
+FMechanicProperties UBaseMoverMovementMode::ProcessMovement_Implementation(const FMomentum CurrentMomentum, const FVector MoveInput, const FMoverInputPool Inputs, const float DeltaTime) const
+{
+	auto result = FMechanicProperties();
+	result.Gravity = CurrentMomentum.Gravity;
+	result.Linear.DecelerationSpeed = 0;
+	return result;
 }
 
 //------------------------------------------------------------------------------------------------------------------------
