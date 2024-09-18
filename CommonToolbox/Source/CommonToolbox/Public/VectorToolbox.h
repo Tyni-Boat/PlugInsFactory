@@ -14,7 +14,6 @@ class COMMONTOOLBOX_API UVectorToolbox : public UBlueprintFunctionLibrary
 {
 	GENERATED_BODY()
 public:
-	
 	// Restrict a vector inside a cone defined by normal and angle in degrees.
 	UFUNCTION(BlueprintPure, Category = "Toolbox|Vectors", meta=(BlueprintThreadSafe))
 	static FVector VectorCone(const FVector inVector, const FVector normal, const float alphaAngle = 90);
@@ -35,4 +34,7 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Toolbox|Vectors", meta=(BlueprintThreadSafe))
 	static FVector GetSnapOnSurfaceVector(const FVector point, const FHitResult surface, const FVector axis);
 
+	//Calculates the intersection point of two lines defined by points ( A1, A2 ) and ( B1, B2 )
+	UFUNCTION(BlueprintPure, Category = "Toolbox|Vectors", meta=(BlueprintThreadSafe))
+	static bool LineIntersection(const FVector& A1, const FVector& A2, const FVector& B1, const FVector& B2, FVector& IntersectionPoint);
 };
