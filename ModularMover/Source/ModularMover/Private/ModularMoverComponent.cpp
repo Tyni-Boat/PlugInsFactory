@@ -120,6 +120,7 @@ void UModularMoverComponent::AsyncPhysicsTickComponent(float DeltaTime, float Si
 			currentMomentum.AngularVelocity = UPhysicToolbox::GetRigidBodyAngularVelocity(BodyInstance);
 			currentMomentum.Mass = GetMass();
 			currentMomentum.Gravity = _lastGravity;
+			currentMomentum.Shape = UpdatedPrimitive->GetCollisionShape();
 
 			EvaluateMovementDiff(currentMomentum, _inputPool);
 
@@ -604,6 +605,7 @@ void UModularMoverComponent::FixOverlapHits(int& maxDepth, const FTransform Tran
 
 #pragma endregion
 
+
 #pragma region Movement Mode
 
 
@@ -757,7 +759,9 @@ FMechanicProperties UModularMoverComponent::ProcessContingentMoves(const FMoment
 			if (const auto MovementMode = _subSystem->GetContingentMoveObject(ContingentMoveState[activeIndex].BaseInfos.ModeName))
 			{
 				// Process
+				const auto name = ContingentMoveState[activeIndex].BaseInfos.ModeName;
 				move = MovementMode->ProcessContingentMovement(ContingentMoveState[activeIndex], currentMomentum, _movementInput, _inputPool, DeltaTime);
+				ContingentMoveState[activeIndex].BaseInfos.ModeName = name;
 				// Blend values
 				move.Scale(activeWeight);
 			}
@@ -780,7 +784,9 @@ FMechanicProperties UModularMoverComponent::ProcessContingentMoves(const FMoment
 				if (const auto MovementMode = _subSystem->GetContingentMoveObject(ContingentMoveState[i].BaseInfos.ModeName))
 				{
 					// Process
+					const auto name = ContingentMoveState[i].BaseInfos.ModeName;
 					auto auxMove = MovementMode->ProcessContingentMovement(ContingentMoveState[i], currentMomentum, _movementInput, _inputPool, DeltaTime);
+					ContingentMoveState[i].BaseInfos.ModeName = name;
 					// Blend values
 					const float blendValue = FMath::Min(blendLeft, ContingentMoveState[i].BaseInfos.CurrentWeight);
 					auxMove.Scale(blendValue);
@@ -951,7 +957,9 @@ FMechanicProperties UModularMoverComponent::ProcessTransientMoves(const FMechani
 			if (const auto MovementMode = _subSystem->GetTransientMoveObject(TransientMoveState[activeIndex].BaseInfos.ModeName))
 			{
 				// Process
+				const auto name = TransientMoveState[activeIndex].BaseInfos.ModeName;
 				move = MovementMode->ProcessTransientMovement(ContingentMoveResult, TransientMoveState[activeIndex], currentMomentum, _movementInput, _inputPool, DeltaTime);
+				TransientMoveState[activeIndex].BaseInfos.ModeName = name;
 				// Blend values
 				move.Scale(activeWeight);
 			}
@@ -992,7 +1000,9 @@ FMechanicProperties UModularMoverComponent::ProcessTransientMoves(const FMechani
 			if (const auto MovementMode = _subSystem->GetTransientMoveObject(TransientMoveState[i].BaseInfos.ModeName))
 			{
 				// Process
+				const auto name = TransientMoveState[i].BaseInfos.ModeName;
 				auto auxMove = MovementMode->ProcessTransientMovement(ContingentMoveResult, TransientMoveState[i], currentMomentum, _movementInput, _inputPool, DeltaTime);
+				TransientMoveState[i].BaseInfos.ModeName = name;
 				// Blend values
 				const float blendValue = FMath::Min(blendLeft, TransientMoveState[i].BaseInfos.CurrentWeight);
 				auxMove.Scale(blendValue);

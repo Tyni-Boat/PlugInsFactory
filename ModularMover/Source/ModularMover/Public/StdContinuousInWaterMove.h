@@ -9,7 +9,7 @@
 /**
  * 
  */
-UCLASS()
+UCLASS(BlueprintType, Blueprintable, ClassGroup = "Mover|Movement Modes|Contingents", Abstract)
 class MODULARMOVER_API UStdContinuousInWaterMove : public UBaseContingentMove
 {
 	GENERATED_BODY()

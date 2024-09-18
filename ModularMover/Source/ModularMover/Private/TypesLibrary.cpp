@@ -228,14 +228,14 @@ UBaseContingentMove::UBaseContingentMove()
 }
 
 
-bool UBaseContingentMove::CheckContingentMovement_Implementation(const TArray<FExpandedHitResult>& Surfaces, const FContingentMoveInfos MoveInfos, const FMomentum CurrentMomentum,
+bool UBaseContingentMove::CheckContingentMovement_Implementation(const TArray<FExpandedHitResult>& Surfaces, FContingentMoveInfos& MoveInfos, const FMomentum CurrentMomentum,
                                                                  const FVector MoveInput, const FMoverInputPool Inputs, const TArray<FContingentMoveInfos>& ContingentMoves, const TArray<FTransientMoveInfos>& TransientMoves,
                                                                  TMap<FName, FVector>& CustomProperties, int& SurfacesFlag) const
 {
 	return false;
 }
 
-FMechanicProperties UBaseContingentMove::ProcessContingentMovement_Implementation(const FContingentMoveInfos MoveInfos, const FMomentum CurrentMomentum, const FVector MoveInput,
+FMechanicProperties UBaseContingentMove::ProcessContingentMovement_Implementation(FContingentMoveInfos& MoveInfos, const FMomentum CurrentMomentum, const FVector MoveInput,
                                                                                   const FMoverInputPool Inputs, const float DeltaTime) const
 {
 	auto result = FMechanicProperties();
@@ -253,14 +253,14 @@ UBaseTransientMove::UBaseTransientMove()
 }
 
 
-bool UBaseTransientMove::CheckTransientMovement_Implementation(const TArray<FExpandedHitResult>& Surfaces, const FTransientMoveInfos MoveInfos, const FMomentum CurrentMomentum,
+bool UBaseTransientMove::CheckTransientMovement_Implementation(const TArray<FExpandedHitResult>& Surfaces, FTransientMoveInfos& MoveInfos, const FMomentum CurrentMomentum,
                                                                const FVector MoveInput, const FMoverInputPool Inputs, const TArray<FContingentMoveInfos>& ContingentMoves, const TArray<FTransientMoveInfos>& TransientMoves,
                                                                TMap<FName, FVector>& CustomProperties, int& SurfacesFlag) const
 {
 	return false;
 }
 
-FMechanicProperties UBaseTransientMove::ProcessTransientMovement_Implementation(const FMechanicProperties ContingentMove, const FTransientMoveInfos MoveInfos,
+FMechanicProperties UBaseTransientMove::ProcessTransientMovement_Implementation(const FMechanicProperties ContingentMove, FTransientMoveInfos& MoveInfos,
                                                                                 const FMomentum CurrentMomentum, const FVector MoveInput,
                                                                                 const FMoverInputPool Inputs, const float DeltaTime) const
 {
