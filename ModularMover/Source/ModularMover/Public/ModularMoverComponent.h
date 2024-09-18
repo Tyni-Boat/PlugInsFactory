@@ -57,6 +57,9 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Debug")
 	EDebugMode DebugMode = EDebugMode::None;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Debug")
+	FVector DebugPoint;
+
 public:
 	// Called every frame
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;

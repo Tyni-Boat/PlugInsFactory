@@ -98,7 +98,13 @@ void UModularMoverComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 	// ...
 	UpdateInputs(DeltaTime);
 	if (UpdatedPrimitive)
+	{
 		UpdatedPrimitive->SetCollisionEnabled(IsIgnoringCollision() ? ECollisionEnabled::QueryAndProbe : ECollisionEnabled::QueryAndPhysics);
+		FVector pt = UPhysicToolbox::GetPointOnShapeInDirection(UpdatedPrimitive->GetCollisionShape(), UpdatedPrimitive->GetComponentTransform(), DebugPoint - UpdatedPrimitive->GetComponentLocation());
+		FVector st = UpdatedPrimitive->GetComponentLocation();
+		UKismetSystemLibrary::DrawDebugArrow(this, st, DebugPoint, 25, FColor::Yellow, 0, 0.25);
+		UKismetSystemLibrary::DrawDebugArrow(this, st, pt, 50, FColor::Orange, 0, 2);
+	}
 }
 
 

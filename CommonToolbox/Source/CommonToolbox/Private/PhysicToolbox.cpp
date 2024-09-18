@@ -37,12 +37,18 @@ FVector UPhysicToolbox::GetPointOnShapeInDirection(const FCollisionShape Shape, 
 			break;
 		case ECollisionShape::Capsule:
 			{
-				FVector upVector = (localVector * Shape.GetCapsuleHalfHeight()).ProjectOnToNormal(FVector::UpVector);
-				const FVector planedVector = FVector::VectorPlaneProject(localVector, FVector::UpVector).GetSafeNormal() * Shape.GetCapsuleRadius();
-				point = upVector + planedVector * (upVector.Length() <= Shape.GetCapsuleAxisHalfLength()
-					                                   ? 1
-					                                   : FMath::Cos(FMath::Asin(FMath::GetMappedRangeValueClamped(TRange<double>(0, Shape.GetCapsuleRadius()), TRange<double>(0, 1),
-					                                                                                              upVector.Length() - Shape.GetCapsuleAxisHalfLength()))));
+				float mainStringLenght = FMath::Sqrt((Shape.GetCapsuleRadius() * Shape.GetCapsuleRadius()) + (Shape.GetCapsuleAxisHalfLength() * Shape.GetCapsuleAxisHalfLength()));
+				const FVector upDir = localVector.ProjectOnToNormal(FVector::UpVector).GetSafeNormal();
+				FVector planedVector = FVector::VectorPlaneProject(localVector * mainStringLenght, FVector::UpVector).GetClampedToMaxSize(Shape.GetCapsuleRadius());
+				FVector upVector = (upDir * (Shape.GetCapsuleRadius() / FMath::Tan(FMath::Asin(planedVector.GetSafeNormal() | localVector.GetSafeNormal()))))
+					.GetClampedToMaxSize(Shape.GetCapsuleAxisHalfLength());
+				const float cos = planedVector.Length() / Shape.GetCapsuleRadius();
+				if (cos < 1)
+				{
+				}
+				//point = planedVector + upVector;
+				//point = upVector;
+
 				point = Transform.TransformPosition(point);
 			}
 			break;
