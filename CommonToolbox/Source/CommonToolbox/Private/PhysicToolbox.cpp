@@ -48,9 +48,11 @@ FVector UPhysicToolbox::GetPointOnShapeInDirection(const FCollisionShape Shape, 
 				if (cos < 1)
 				{
 					FVector IntersectionPoint1, IntersectionPoint2;
-					bool bIntersects = FMath::LineSphereIntersection(upDir * Shape.GetCapsuleAxisHalfLength(), Shape.GetCapsuleRadius(), FVector(0), localVector * 2 * Shape.GetCapsuleHalfHeight(), IntersectionPoint1, IntersectionPoint2);
+					int bIntersects = UVectorToolbox::IntersectLineSphere(FVector(0), localVector, upDir * Shape.GetCapsuleAxisHalfLength(), Shape.GetCapsuleRadius()
+					                                                      , IntersectionPoint1, IntersectionPoint2);
+					point = bIntersects > 1 ? IntersectionPoint2 : IntersectionPoint1;
 				}
-				
+
 				//point = planedVector + upVector;
 				//point = upVector;
 
