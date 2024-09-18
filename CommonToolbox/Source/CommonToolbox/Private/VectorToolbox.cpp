@@ -132,6 +132,7 @@ int UVectorToolbox::IntersectLineSphere(const FVector& LinePoint, const FVector&
 	}
 }
 
+
 bool UVectorToolbox::IntersectLineBox(const FBox& Box, const FTransform& BoxTransform, const FVector& LineStart, const FVector& LineEnd, FVector& OutIntersection)
 {
 	const FVector start = Box.GetCenter() + BoxTransform.GetRotation().UnrotateVector(LineStart - Box.GetCenter());

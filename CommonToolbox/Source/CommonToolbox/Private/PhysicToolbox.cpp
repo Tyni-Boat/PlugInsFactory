@@ -12,6 +12,7 @@ bool UPhysicToolbox::CollisionShapeEquals(const FCollisionShape shapeA, const FC
 	return shapeA.GetExtent() == shapeB.GetExtent();
 }
 
+
 FVector UPhysicToolbox::GetPointOnShapeInDirection(const FCollisionShape Shape, const FTransform Transform, FVector Direction)
 {
 	if (!Direction.Normalize())
