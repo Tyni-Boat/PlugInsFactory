@@ -3,13 +3,52 @@
 #include "PhysicToolbox.h"
 
 
-
-
 bool UPhysicToolbox::CollisionShapeEquals(const FCollisionShape shapeA, const FCollisionShape shapeB)
 {
 	if (shapeA.ShapeType != shapeB.ShapeType)
 		return false;
 	return shapeA.GetExtent() == shapeB.GetExtent();
+}
+
+FVector UPhysicToolbox::GetPointOnShapeInDirection(const FCollisionShape Shape, const FTransform Transform, FVector Direction)
+{
+	if (!Direction.Normalize())
+		return Transform.GetLocation();
+	FVector point;
+	FVector localVector = Transform.InverseTransformVector(Direction);
+	switch (Shape.ShapeType)
+	{
+		case ECollisionShape::Line:
+			point = Transform.GetLocation();
+			break;
+		case ECollisionShape::Sphere:
+			point = Transform.GetLocation() + Direction * Shape.GetSphereRadius();
+			break;
+		case ECollisionShape::Box:
+			{
+				FVector normal;
+				float time;
+				const FVector start = FVector(0);
+				const FVector end = start + localVector * Shape.GetExtent().SquaredLength();
+				const FBox Box = FBox::BuildAABB(start, Shape.GetExtent());
+				FMath::LineExtentBoxIntersection(Box, start, end, FVector(0), point, normal, time);
+				point = Transform.TransformPosition(point);
+			}
+			break;
+		case ECollisionShape::Capsule:
+			{
+				FVector upVector = (localVector * Shape.GetCapsuleHalfHeight()).ProjectOnToNormal(FVector::UpVector);
+				const FVector planedVector = FVector::VectorPlaneProject(localVector, FVector::UpVector).GetSafeNormal() * Shape.GetCapsuleRadius();
+				point = upVector + planedVector * (upVector.Length() <= Shape.GetCapsuleAxisHalfLength()
+					                                   ? 1
+					                                   : FMath::Cos(FMath::Asin(FMath::GetMappedRangeValueClamped(TRange<double>(0, Shape.GetCapsuleRadius()), TRange<double>(0, 1),
+					                                                                                              upVector.Length() - Shape.GetCapsuleAxisHalfLength()))));
+				point = Transform.TransformPosition(point);
+			}
+			break;
+		default: ;
+	}
+	return point;
 }
 
 
@@ -23,7 +62,7 @@ FVector UPhysicToolbox::GetKineticEnergy(const FVector velocity, const float mas
 
 
 void UPhysicToolbox::PostPhysicTrace_internal(const TArray<FHitResult> IncomingHits, TArray<FExpandedHitResult>& outgoingHits, ECollisionChannel Channel,
-                                                            FCollisionQueryParams& queryParams, ESurfaceTraceHitType offsetFilter, float PenetrationStep)
+                                              FCollisionQueryParams& queryParams, ESurfaceTraceHitType offsetFilter, float PenetrationStep)
 {
 	outgoingHits.Empty();
 	if (IncomingHits.Num() <= 0)
@@ -103,8 +142,8 @@ void UPhysicToolbox::PostPhysicTrace_internal(const TArray<FHitResult> IncomingH
 }
 
 bool UPhysicToolbox::ComponentTraceMulti_internal(UWorld* world, FCollisionShape Shape, ECollisionChannel Channel, TArray<FExpandedHitResult>& outHits, FVector position,
-                                                           FVector direction, FQuat rotation, bool traceComplex,
-                                                           FCollisionQueryParams& queryParams, ESurfaceTraceHitType offsetFilter, float PenetrationStep)
+                                                  FVector direction, FQuat rotation, bool traceComplex,
+                                                  FCollisionQueryParams& queryParams, ESurfaceTraceHitType offsetFilter, float PenetrationStep)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("ComponentTraceCastMulti");
 	if (!world)
@@ -129,7 +168,7 @@ bool UPhysicToolbox::ComponentTraceMulti_internal(UWorld* world, FCollisionShape
 
 
 FTraceHandle UPhysicToolbox::AsyncComponentTraceMulti_internal(UWorld* world, FCollisionShape Shape, FVector position, FVector direction, FQuat rotation,
-                                                                        FTraceDelegate* Result, bool traceComplex, FCollisionQueryParams& queryParams)
+                                                               FTraceDelegate* Result, bool traceComplex, FCollisionQueryParams& queryParams)
 {
 	if (!world)
 		return {};
@@ -148,7 +187,8 @@ FVector UPhysicToolbox::OrientationDiffToAngularVelocity(const FQuat initialOrie
 	FQuat c_targetOrient = targetOrientation;
 	c_targetOrient.EnforceShortestArcWith(initialOrientation);
 	const FQuat diff = c_targetOrient * initialOrientation.Inverse();
-	FVector axis; float angle;
+	FVector axis;
+	float angle;
 	diff.ToAxisAndAngle(axis, angle);
 	return axis.GetSafeNormal() * angle;
 }
@@ -373,7 +413,7 @@ FVector UPhysicToolbox::GetRigidBodyLinearVelocityAtPoint(const FBodyInstance* B
 
 Chaos::FRigidBodyHandle_Internal* UPhysicToolbox::GetInternalRigidBody(const FBodyInstance* BodyInstance)
 {
-	if(!BodyInstance)
+	if (!BodyInstance)
 		return nullptr;
 	if (const auto Handle = BodyInstance->ActorHandle)
 	{
@@ -384,4 +424,3 @@ Chaos::FRigidBodyHandle_Internal* UPhysicToolbox::GetInternalRigidBody(const FBo
 	}
 	return nullptr;
 }
-

@@ -19,6 +19,9 @@ public:
 	
 	// Compare 2 collision shapes and return true if they are of same type and size.
 	static bool CollisionShapeEquals(const FCollisionShape shapeA, const FCollisionShape shapeB);
+	
+	// Get the point on a Shape in a direction. 
+	static FVector GetPointOnShapeInDirection(const FCollisionShape Shape, const FTransform Transform, FVector Direction);
 
 
 	// Get the Kinetic Energy of a body of mass (Kg), traveling at velocity. Set distance travelled to get the force.
