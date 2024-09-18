@@ -86,7 +86,7 @@ FVector UVectorToolbox::GetSnapOnSurfaceVector(const FVector point, const FHitRe
 	return snapVector;
 }
 
-bool UVectorToolbox::LineIntersection(const FVector& A1, const FVector& A2, const FVector& B1, const FVector& B2, FVector& IntersectionPoint)
+bool UVectorToolbox::IntersectLineLine(const FVector& A1, const FVector& A2, const FVector& B1, const FVector& B2, FVector& IntersectionPoint)
 {
 	const FVector da = A2 - A1;
 	const FVector db = B2 - B1;
@@ -130,4 +130,20 @@ int UVectorToolbox::IntersectLineSphere(const FVector& LinePoint, const FVector&
 		IntersectionPoint1 = LinePoint + t2 * LineDir;
 		return 2;
 	}
+}
+
+bool UVectorToolbox::IntersectLineBox(const FBox& Box, const FTransform& BoxTransform, const FVector& LineStart, const FVector& LineEnd, FVector& OutIntersection)
+{
+	const FVector start = BoxTransform.InverseTransformPosition(LineStart);
+	const FVector end = BoxTransform.InverseTransformPosition(LineEnd);
+	FVector HitLocation, HitNormal;
+	float HitTime = 0;
+	if (FMath::LineExtentBoxIntersection(Box, start, end, FVector::ZeroVector, HitLocation, HitNormal, HitTime))
+	{
+		HitLocation = BoxTransform.TransformVector(HitLocation);
+		OutIntersection = HitLocation;
+		return true;
+	}
+
+	return false;
 }
