@@ -132,15 +132,16 @@ int UVectorToolbox::IntersectLineSphere(const FVector& LinePoint, const FVector&
 	}
 }
 
+
 bool UVectorToolbox::IntersectLineBox(const FBox& Box, const FTransform& BoxTransform, const FVector& LineStart, const FVector& LineEnd, FVector& OutIntersection)
 {
-	const FVector start = BoxTransform.InverseTransformPosition(LineStart);
-	const FVector end = BoxTransform.InverseTransformPosition(LineEnd);
+	const FVector start = Box.GetCenter() + BoxTransform.GetRotation().UnrotateVector(LineStart - Box.GetCenter());
+	const FVector end = Box.GetCenter() + BoxTransform.GetRotation().UnrotateVector(LineEnd - Box.GetCenter());;
 	FVector HitLocation, HitNormal;
 	float HitTime = 0;
 	if (FMath::LineExtentBoxIntersection(Box, start, end, FVector::ZeroVector, HitLocation, HitNormal, HitTime))
 	{
-		HitLocation = BoxTransform.TransformVector(HitLocation);
+		HitLocation = Box.GetCenter() + BoxTransform.GetRotation().RotateVector(HitLocation - Box.GetCenter());
 		OutIntersection = HitLocation;
 		return true;
 	}
