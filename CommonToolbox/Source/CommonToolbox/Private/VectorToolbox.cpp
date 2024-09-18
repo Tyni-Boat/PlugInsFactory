@@ -65,6 +65,15 @@ FVector UVectorToolbox::Project2DInputs(FVector2D input, FTransform transformRel
 	return direction;
 }
 
+FVector UVectorToolbox::Project3DVector(FVector inVector, FVector planeNormal)
+{
+	if(!planeNormal.Normalize())
+		return inVector;
+	const float lenght = inVector.Length();
+	const FVector result = FVector::VectorPlaneProject(inVector, planeNormal).GetSafeNormal() * lenght;
+	return result;
+}
+
 FVector UVectorToolbox::GetSnapOnSurfaceVector(const FVector point, const FHitResult surface, const FVector axis)
 {
 	if (!surface.Component.IsValid())
