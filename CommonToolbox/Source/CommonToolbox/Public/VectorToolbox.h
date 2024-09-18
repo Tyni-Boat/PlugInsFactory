@@ -37,4 +37,8 @@ public:
 	//Calculates the intersection point of two lines defined by points ( A1, A2 ) and ( B1, B2 )
 	UFUNCTION(BlueprintPure, Category = "Toolbox|Vectors", meta=(BlueprintThreadSafe))
 	static bool LineIntersection(const FVector& A1, const FVector& A2, const FVector& B1, const FVector& B2, FVector& IntersectionPoint);
+
+	//Calculates the intersection point of a line and a sphere. return the intersection count (0-2)
+	UFUNCTION(BlueprintPure, Category = "Toolbox|Vectors", meta=(BlueprintThreadSafe))
+	static int IntersectLineSphere(const FVector& LinePoint, const FVector& LineDir, const FVector& SphereCenter, float SphereRadius, FVector& IntersectionPoint1, FVector& IntersectionPoint2);
 };

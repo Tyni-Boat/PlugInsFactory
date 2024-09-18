@@ -101,3 +101,32 @@ bool UVectorToolbox::LineIntersection(const FVector& A1, const FVector& A2, cons
 	IntersectionPoint = A1 + s * da;
 	return true;
 }
+
+int UVectorToolbox::IntersectLineSphere(const FVector& LinePoint, const FVector& LineDir, const FVector& SphereCenter, float SphereRadius, FVector& IntersectionPoint1,
+	FVector& IntersectionPoint2)
+{
+	FVector oc = LinePoint - SphereCenter;
+	const float a = FVector::DotProduct(LineDir, LineDir);
+	const float b = 2.0f * FVector::DotProduct(oc, LineDir);
+	const float c = FVector::DotProduct(oc, oc) - SphereRadius * SphereRadius;
+	const float discriminant = b * b - 4 * a * c;
+
+	if (discriminant < 0) {
+		// No intersection
+		return 0;
+	} else if (discriminant == 0) {
+		// One intersection (tangent)
+		float t = -b / (2 * a);
+		IntersectionPoint1 = LinePoint + t * LineDir;
+		return 1;
+	} else {
+		// Two intersections (secant)
+		const float sqrtDiscriminant = FMath::Sqrt(discriminant);
+		const float t1 = (-b + sqrtDiscriminant) / (2 * a);
+		const float t2 = (-b - sqrtDiscriminant) / (2 * a);
+
+		IntersectionPoint1 = LinePoint + t1 * LineDir;
+		IntersectionPoint2 = LinePoint + t2 * LineDir;
+		return 2;
+	}
+}
