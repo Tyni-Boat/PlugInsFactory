@@ -85,3 +85,19 @@ FVector UVectorToolbox::GetSnapOnSurfaceVector(const FVector point, const FHitRe
 		snapVector = snapVector.ProjectOnToNormal(snapDirection);
 	return snapVector;
 }
+
+bool UVectorToolbox::LineIntersection(const FVector& A1, const FVector& A2, const FVector& B1, const FVector& B2, FVector& IntersectionPoint)
+{
+	const FVector da = A2 - A1;
+	const FVector db = B2 - B1;
+	const FVector dc = B1 - A1;
+
+	const float crossDaDb = FVector::CrossProduct(da, db).Size();
+	// Lines are parallel
+	if (crossDaDb == 0)
+		return false;
+
+	const float s = FVector::CrossProduct(dc, db).Size() / crossDaDb;
+	IntersectionPoint = A1 + s * da;
+	return true;
+}
