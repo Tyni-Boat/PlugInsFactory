@@ -2,6 +2,8 @@
 
 #include "PhysicToolbox.h"
 
+#include "VectorToolbox.h"
+
 
 bool UPhysicToolbox::CollisionShapeEquals(const FCollisionShape shapeA, const FCollisionShape shapeB)
 {
@@ -45,7 +47,10 @@ FVector UPhysicToolbox::GetPointOnShapeInDirection(const FCollisionShape Shape, 
 				const float cos = planedVector.Length() / Shape.GetCapsuleRadius();
 				if (cos < 1)
 				{
+					FVector IntersectionPoint1, IntersectionPoint2;
+					bool bIntersects = FMath::LineSphereIntersection(upDir * Shape.GetCapsuleAxisHalfLength(), Shape.GetCapsuleRadius(), FVector(0), localVector * 2 * Shape.GetCapsuleHalfHeight(), IntersectionPoint1, IntersectionPoint2);
 				}
+				
 				//point = planedVector + upVector;
 				//point = upVector;
 
