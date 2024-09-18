@@ -118,6 +118,7 @@ int UVectorToolbox::IntersectLineSphere(const FVector& LinePoint, const FVector&
 		// One intersection (tangent)
 		float t = -b / (2 * a);
 		IntersectionPoint1 = LinePoint + t * LineDir;
+		IntersectionPoint2 = IntersectionPoint1;
 		return 1;
 	} else {
 		// Two intersections (secant)
@@ -125,8 +126,8 @@ int UVectorToolbox::IntersectLineSphere(const FVector& LinePoint, const FVector&
 		const float t1 = (-b + sqrtDiscriminant) / (2 * a);
 		const float t2 = (-b - sqrtDiscriminant) / (2 * a);
 
-		IntersectionPoint1 = LinePoint + t1 * LineDir;
-		IntersectionPoint2 = LinePoint + t2 * LineDir;
+		IntersectionPoint2 = LinePoint + t1 * LineDir;
+		IntersectionPoint1 = LinePoint + t2 * LineDir;
 		return 2;
 	}
 }
