@@ -28,12 +28,11 @@ FVector UPhysicToolbox::GetPointOnShapeInDirection(const FCollisionShape Shape, 
 			break;
 		case ECollisionShape::Box:
 			{
-				FVector normal;
-				float time;
-				const FVector start = FVector(0);
-				const FVector end = start + localVector * Shape.GetExtent().SquaredLength();
-				const FBox Box = FBox::BuildAABB(start, Shape.GetExtent());
-				FMath::LineExtentBoxIntersection(Box, start, end, FVector(0), point, normal, time);
+				const FVector masterVector = localVector * Shape.GetExtent().Length();
+				const FVector fProject = masterVector.ProjectOnToNormal(FVector::ForwardVector).GetClampedToMaxSize(Shape.Box.HalfExtentX);
+				const FVector rProject = masterVector.ProjectOnToNormal(FVector::RightVector).GetClampedToMaxSize(Shape.Box.HalfExtentY);
+				const FVector uProject = masterVector.ProjectOnToNormal(FVector::UpVector).GetClampedToMaxSize(Shape.Box.HalfExtentZ);
+				point = fProject;
 				point = Transform.TransformPosition(point);
 			}
 			break;
@@ -45,6 +44,7 @@ FVector UPhysicToolbox::GetPointOnShapeInDirection(const FCollisionShape Shape, 
 				FVector upVector = (upDir * (Shape.GetCapsuleRadius() / FMath::Tan(FMath::Asin(planedVector.GetSafeNormal() | localVector.GetSafeNormal()))))
 					.GetClampedToMaxSize(Shape.GetCapsuleAxisHalfLength());
 				const float cos = planedVector.Length() / Shape.GetCapsuleRadius();
+				point = planedVector + upVector;
 				if (cos < 1)
 				{
 					FVector IntersectionPoint1, IntersectionPoint2;
@@ -52,10 +52,6 @@ FVector UPhysicToolbox::GetPointOnShapeInDirection(const FCollisionShape Shape, 
 					                                                      , IntersectionPoint1, IntersectionPoint2);
 					point = bIntersects > 1 ? IntersectionPoint2 : IntersectionPoint1;
 				}
-
-				//point = planedVector + upVector;
-				//point = upVector;
-
 				point = Transform.TransformPosition(point);
 			}
 			break;
