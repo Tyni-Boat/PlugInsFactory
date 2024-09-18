@@ -40,14 +40,14 @@ public:
 
 	void UnRegisterComponent(UModularMoverComponent* mover);
 
-	void UpdateChunk(UModularMoverComponent* mover, FTransform newTransform);
+	void UpdateChunk(UModularMoverComponent* mover, FMoverCheckRequest Request);
 
 	bool AddContingentLibrary(FContingentMoveInfos& OutMoveInfos, TSubclassOf<UBaseContingentMove> ModeClass = nullptr);
-	
+
 	bool RemoveContingentLibrary(FName ModeName);
 
 	bool AddTransientLibrary(FTransientMoveInfos& OutMoveInfos, TSubclassOf<UBaseTransientMove> ModeClass = nullptr);
-	
+
 	bool RemoveTransientLibrary(FName ModeName);
 
 	void Initialize(FSubsystemCollectionBase& Collection) override;
@@ -58,7 +58,7 @@ public:
 
 	TStatId GetStatId() const override;
 
-	TSoftObjectPtr<UBaseMoverMovementMode> GetContingentMoveObject(const FName ModeName);
+	UBaseContingentMove* GetContingentMoveObject(const FName ModeName);
 
-	TSoftObjectPtr<UBaseMoverMovementMode> GetTransientMoveObject(const FName ModeName);
+	UBaseTransientMove* GetTransientMoveObject(const FName ModeName);
 };

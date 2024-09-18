@@ -152,11 +152,11 @@ FContingentMoveInfos::FContingentMoveInfos()
 
 FContingentMoveInfos::FContingentMoveInfos(UBaseContingentMove* move)
 {
-	if(!move)
+	if (!move)
 		return;
 	BaseInfos.ModeName = move->ModeName;
 	BaseInfos.Priority = move->Priority;
-	BaseInfos.BlendTimes = move->BlendTimes;
+	BaseInfos.BlendSpeed = move->BlendSpeed;
 }
 
 FTransientMoveInfos::FTransientMoveInfos()
@@ -165,11 +165,11 @@ FTransientMoveInfos::FTransientMoveInfos()
 
 FTransientMoveInfos::FTransientMoveInfos(UBaseTransientMove* move)
 {
-	if(!move)
+	if (!move)
 		return;
 	BaseInfos.ModeName = move->ModeName;
 	BaseInfos.Priority = move->Priority;
-	BaseInfos.BlendTimes = move->BlendTimes;
+	BaseInfos.BlendSpeed = move->BlendSpeed;
 	ModeDuration = move->ModeDuration;
 }
 
@@ -212,7 +212,6 @@ bool UStructExtension::ReadTriggerInput(const FMoverInputPool InputPool, const F
 #pragma region Classes
 
 
-
 UBaseMoverMovementMode::UBaseMoverMovementMode()
 {
 }
@@ -222,14 +221,6 @@ bool UBaseMoverMovementMode::IsValid() const
 	return ModeName != NAME_None && Priority >= 0;
 }
 
-FMechanicProperties UBaseMoverMovementMode::ProcessMovement_Implementation(const FMomentum CurrentMomentum, const FVector MoveInput, const FMoverInputPool Inputs, const float DeltaTime) const
-{
-	auto result = FMechanicProperties();
-	result.Gravity = CurrentMomentum.Gravity;
-	result.Linear.DecelerationSpeed = 0;
-	return result;
-}
-
 //------------------------------------------------------------------------------------------------------------------------
 
 UBaseContingentMove::UBaseContingentMove()
@@ -237,10 +228,43 @@ UBaseContingentMove::UBaseContingentMove()
 }
 
 
+bool UBaseContingentMove::CheckContingentMovement_Implementation(const TArray<FExpandedHitResult>& Surfaces, const FContingentMoveInfos MoveInfos, const FMomentum CurrentMomentum,
+                                                                 const FVector MoveInput, const FMoverInputPool Inputs, const TArray<FContingentMoveInfos>& ContingentMoves, const TArray<FTransientMoveInfos>& TransientMoves,
+                                                                 TMap<FName, FVector>& CustomProperties, int& SurfacesFlag) const
+{
+	return false;
+}
+
+FMechanicProperties UBaseContingentMove::ProcessContingentMovement_Implementation(const FContingentMoveInfos MoveInfos, const FMomentum CurrentMomentum, const FVector MoveInput,
+                                                                                  const FMoverInputPool Inputs, const float DeltaTime) const
+{
+	auto result = FMechanicProperties();
+	result.Gravity = CurrentMomentum.Gravity;
+	result.Linear.DecelerationSpeed = 0;
+	return result;
+}
+
+
 //------------------------------------------------------------------------------------------------------------------------
+
 
 UBaseTransientMove::UBaseTransientMove()
 {
+}
+
+
+bool UBaseTransientMove::CheckTransientMovement_Implementation(const TArray<FExpandedHitResult>& Surfaces, const FTransientMoveInfos MoveInfos, const FMomentum CurrentMomentum,
+                                                               const FVector MoveInput, const FMoverInputPool Inputs, const TArray<FContingentMoveInfos>& ContingentMoves, const TArray<FTransientMoveInfos>& TransientMoves,
+                                                               TMap<FName, FVector>& CustomProperties, int& SurfacesFlag) const
+{
+	return false;
+}
+
+FMechanicProperties UBaseTransientMove::ProcessTransientMovement_Implementation(const FMechanicProperties ContingentMove, const FTransientMoveInfos MoveInfos,
+                                                                                const FMomentum CurrentMomentum, const FVector MoveInput,
+                                                                                const FMoverInputPool Inputs, const float DeltaTime) const
+{
+	return ContingentMove;
 }
 
 #pragma endregion

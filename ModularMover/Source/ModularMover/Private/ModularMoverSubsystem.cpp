@@ -15,7 +15,9 @@ void UModularMoverSubsystem::RegisterComponent(UModularMoverComponent* mover)
 	if (_registeredMovers.Contains(mover))
 		return;
 	_registeredMovers.Add(mover);
-	UpdateChunk(mover, mover->GetOwner()->GetActorTransform());
+	FMomentum fakeMomentum;
+	fakeMomentum.Transform = mover->GetOwner()->GetActorTransform();
+	UpdateChunk(mover, FMoverCheckRequest(fakeMomentum, FMoverInputPool()));
 	mover->OnComponentMoved.AddUObject(this, &UModularMoverSubsystem::UpdateChunk);
 	for (int i = 0; i < mover->ContingentMoveClasses.Num(); i++)
 	{
@@ -43,11 +45,11 @@ void UModularMoverSubsystem::UnRegisterComponent(UModularMoverComponent* mover)
 }
 
 
-void UModularMoverSubsystem::UpdateChunk(UModularMoverComponent* mover, FTransform newTransform)
+void UModularMoverSubsystem::UpdateChunk(UModularMoverComponent* mover, FMoverCheckRequest Request)
 {
 	if (!mover)
 		return;
-	const FVector location = newTransform.GetLocation();
+	const FVector location = Request.Momentum.Transform.GetLocation();
 	constexpr float divider = MOVER_CHUNK_SIZE;
 	const int X = static_cast<int>(location.X / divider);
 	const int Y = static_cast<int>(location.Y / divider);
@@ -190,16 +192,16 @@ TStatId UModularMoverSubsystem::GetStatId() const
 	return GetStatID();
 }
 
-TSoftObjectPtr<UBaseMoverMovementMode> UModularMoverSubsystem::GetContingentMoveObject(const FName ModeName)
+UBaseContingentMove* UModularMoverSubsystem::GetContingentMoveObject(const FName ModeName)
 {
 	if (!_contigentModeLibrary.Contains(ModeName))
 		return {};
-	return _contigentModeLibrary[ModeName].MovementModeInstance;
+	return static_cast<UBaseContingentMove*>(_contigentModeLibrary[ModeName].MovementModeInstance.Get());
 }
 
-TSoftObjectPtr<UBaseMoverMovementMode> UModularMoverSubsystem::GetTransientMoveObject(const FName ModeName)
+UBaseTransientMove* UModularMoverSubsystem::GetTransientMoveObject(const FName ModeName)
 {
 	if (!_transientModeLibrary.Contains(ModeName))
 		return {};
-	return _transientModeLibrary[ModeName].MovementModeInstance;
+	return static_cast<UBaseTransientMove*>(_transientModeLibrary[ModeName].MovementModeInstance.Get());
 }

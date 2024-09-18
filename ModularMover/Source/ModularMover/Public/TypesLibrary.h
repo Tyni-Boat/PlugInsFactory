@@ -21,6 +21,8 @@ enum class EDebugMode: uint8
 	SurfaceDetection,
 	LinearMovement,
 	AngularMovement,
+	MovementProcessing,
+	Inputs,
 };
 
 UENUM(BlueprintType)
@@ -224,7 +226,7 @@ public:
 	int Priority = 0;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Default")
-	FVector2D BlendTimes = FVector2D(0);
+	FVector2D BlendSpeed = FVector2D(0);
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Default", meta=(UIMin=0, UIMax=1, ClampMin=0, ClampMax=1))
 	float CurrentWeight = 0;
@@ -272,6 +274,35 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Default")
 	TArray<FTransientMovePhases> ModeDuration = TArray<FTransientMovePhases>{FTransientMovePhases("Default", 0.1)};
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Default")
+	FTransientMovePhases CurrentPhase = FTransientMovePhases();
+
+	FORCEINLINE float TotalDuration() const
+	{
+		float duration = 0;
+		if (ModeDuration.Num() <= 0)
+			return duration;
+		for (auto dur : ModeDuration)
+			duration += dur.PhaseDuration;
+		return duration;
+	}
+
+	FORCEINLINE void UpdatePhase()
+	{
+		float collectiveTime = 0;
+		CurrentPhase = FTransientMovePhases();
+
+		for (int i = 0; i < ModeDuration.Num(); i++)
+		{
+			collectiveTime += ModeDuration[i].PhaseDuration;
+			if (BaseInfos.TimeOnMode <= collectiveTime)
+			{
+				CurrentPhase = ModeDuration[i];
+				break;
+			}
+		}
+	}
 };
 
 
@@ -323,6 +354,37 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
 	FVector Gravity = FVector(0, 0, -1);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
+	bool IgnoreCollision = false;
+
+	FORCEINLINE void Scale(const float amount)
+	{
+		Linear.Acceleration *= amount;
+		Linear.DecelerationSpeed *= amount;
+		Linear.TerminalVelocity *= amount;
+		Angular.LookOrientation *= amount;
+		FVector axis;
+		float angle;
+		Angular.OrientationDiff.ToAxisAndAngle(axis, angle);
+		Angular.OrientationDiff = FQuat(axis, angle * amount);
+		Gravity *= amount;
+	}
+
+	FORCEINLINE FMechanicProperties operator+(const FMechanicProperties& other)
+	{
+		FMechanicProperties result;
+		result.Linear.Acceleration = this->Linear.Acceleration + other.Linear.Acceleration;
+		result.Linear.DecelerationSpeed = this->Linear.DecelerationSpeed + other.Linear.DecelerationSpeed;
+		result.Linear.TerminalVelocity = this->Linear.TerminalVelocity + other.Linear.TerminalVelocity;
+
+		result.Angular.LookOrientation = this->Angular.LookOrientation + other.Angular.LookOrientation;
+		result.Angular.OrientationDiff = this->Angular.OrientationDiff * other.Angular.OrientationDiff;
+
+		result.Gravity = this->Gravity + other.Gravity;
+		result.IgnoreCollision = this->IgnoreCollision | other.IgnoreCollision;
+		return result;
+	}
 };
 
 USTRUCT(BlueprintType)
@@ -373,6 +435,56 @@ public:
 	TMap<FName, FMoverInput> InputMap;
 };
 
+USTRUCT(BlueprintType)
+struct FMoverModeSelection
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
+	FName ModeName = NAME_None;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
+	TArray<FExpandedHitResult> Surfaces;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
+	FVector ScanSurfaceVector = FVector(0);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
+	float ScanSurfaceOffset = 0;
+
+	// Enabled when the mover already began processing this move.
+	bool bConsumedActivation = false;
+
+
+	FORCEINLINE bool IsValid() const { return ModeName.IsValid() && !ModeName.IsNone(); };
+};
+
+USTRUCT(BlueprintType)
+struct FMoverCheckRequest
+{
+	GENERATED_BODY()
+
+public:
+	FORCEINLINE FMoverCheckRequest()
+	{
+	}
+
+	FORCEINLINE FMoverCheckRequest(FMomentum momentum, FMoverInputPool inputs)
+	{
+		Momentum = momentum;
+		InputPool.InputMap.Empty();
+		for (auto input : inputs.InputMap)
+			InputPool.InputMap.Add(input);
+	}
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
+	FMomentum Momentum;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
+	FMoverInputPool InputPool;
+};
+
 
 // Expansion Functions for structures
 UCLASS()
@@ -382,16 +494,16 @@ class MODULARMOVER_API UStructExtension : public UBlueprintFunctionLibrary
 
 public:
 	UFUNCTION(BlueprintPure, Category = "StructExtension|Inputs", meta=(BlueprintThreadSafe))
-	static bool ReadVectorInput(const FMoverInputPool InputPool, const FName InputName, UPARAM(ref) FVector& OutVector);
+	static bool ReadVectorInput(const FMoverInputPool InputPool, const FName InputName, FVector& OutVector);
 
 	UFUNCTION(BlueprintPure, Category = "StructExtension|Inputs", meta=(BlueprintThreadSafe))
-	static bool ReadRotationInput(const FMoverInputPool InputPool, const FName InputName, UPARAM(ref) FRotator& OutRotation);
+	static bool ReadRotationInput(const FMoverInputPool InputPool, const FName InputName, FRotator& OutRotation);
 
 	UFUNCTION(BlueprintPure, Category = "StructExtension|Inputs", meta=(BlueprintThreadSafe))
-	static bool ReadValueInput(const FMoverInputPool InputPool, const FName InputName, UPARAM(ref) float& OutValue);
+	static bool ReadValueInput(const FMoverInputPool InputPool, const FName InputName, float& OutValue);
 
 	UFUNCTION(BlueprintPure, Category = "StructExtension|Inputs", meta=(BlueprintThreadSafe))
-	static bool ReadTriggerInput(const FMoverInputPool InputPool, const FName InputName, UPARAM(ref) bool& OutTrigger);
+	static bool ReadTriggerInput(const FMoverInputPool InputPool, const FName InputName, bool& OutTrigger);
 };
 
 #pragma endregion
@@ -415,15 +527,10 @@ public:
 	int Priority = -1;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Default")
-	FVector2D BlendTimes = FVector2D(0);
+	FVector2D BlendSpeed = FVector2D(10);
 
-	UFUNCTION(BlueprintPure, Category="Modular Mover | Mover Movement Mode", meta = (CompactNodeTitle = "ValidState", BlueprintThreadSafe))
+	UFUNCTION(BlueprintPure, Category="Modular Mover | Mover Movement Mode", meta = (CompactNodeTitle = "ValidMoveMode", BlueprintThreadSafe))
 	bool IsValid() const;
-
-	UFUNCTION(BlueprintImplementableEvent, Category="Modular Mover | Mover Movement Mode", meta = (BlueprintThreadSafe))
-	FMechanicProperties ProcessMovement(const FMomentum CurrentMomentum, const FVector MoveInput, const FMoverInputPool Inputs, const float DeltaTime) const;
-	
-	virtual FMechanicProperties ProcessMovement_Implementation(const FMomentum CurrentMomentum, const FVector MoveInput, const FMoverInputPool Inputs, const float DeltaTime) const;
 };
 
 
@@ -435,6 +542,34 @@ class MODULARMOVER_API UBaseContingentMove : public UBaseMoverMovementMode
 
 public:
 	UBaseContingentMove();
+
+	// The direction where to scan for surfaces
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Default")
+	FVector ScanSurfaceVector = FVector(0);
+
+	// The offset in the counter direction where to scan for surfaces
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Default")
+	float ScanSurfaceOffset = 0;
+
+
+	UFUNCTION(BlueprintImplementableEvent, Category="Modular Mover | Mover Movement Mode", meta = (BlueprintThreadSafe, AdvancedDisplay = 5))
+	bool CheckContingentMovement(UPARAM(ref) const TArray<FExpandedHitResult>& Surfaces, const FContingentMoveInfos MoveInfos, const FMomentum CurrentMomentum, const FVector MoveInput,
+	                             const FMoverInputPool Inputs, UPARAM(ref) const TArray<FContingentMoveInfos>& ContingentMoves,
+	                             UPARAM(ref) const TArray<FTransientMoveInfos>& TransientMoves, UPARAM(ref) TMap<FName, FVector>& CustomProperties, UPARAM(ref) int& SurfacesFlag) const;
+
+	virtual bool CheckContingentMovement_Implementation(UPARAM(ref) const TArray<FExpandedHitResult>& Surfaces, const FContingentMoveInfos MoveInfos, const FMomentum CurrentMomentum,
+	                                                    const FVector MoveInput,
+	                                                    const FMoverInputPool Inputs,UPARAM(ref) const TArray<FContingentMoveInfos>& ContingentMoves,
+	                                                    UPARAM(ref) const TArray<FTransientMoveInfos>& TransientMoves, UPARAM(ref) TMap<FName, FVector>& CustomProperties,
+	                                                    UPARAM(ref) int& SurfacesFlag) const;
+
+
+	UFUNCTION(BlueprintImplementableEvent, Category="Modular Mover | Mover Movement Mode", meta = (BlueprintThreadSafe))
+	FMechanicProperties ProcessContingentMovement(const FContingentMoveInfos MoveInfos, const FMomentum CurrentMomentum, const FVector MoveInput, const FMoverInputPool Inputs,
+	                                              const float DeltaTime) const;
+
+	virtual FMechanicProperties ProcessContingentMovement_Implementation(const FContingentMoveInfos MoveInfos, const FMomentum CurrentMomentum, const FVector MoveInput,
+	                                                                     const FMoverInputPool Inputs, const float DeltaTime) const;
 };
 
 
@@ -449,6 +584,28 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Timing")
 	TArray<FTransientMovePhases> ModeDuration = TArray<FTransientMovePhases>{FTransientMovePhases("Default", 0.1)};
+
+
+	UFUNCTION(BlueprintImplementableEvent, Category="Modular Mover | Mover Movement Mode", meta = (BlueprintThreadSafe, AdvancedDisplay = 5))
+	bool CheckTransientMovement(UPARAM(ref) const TArray<FExpandedHitResult>& Surfaces, const FTransientMoveInfos MoveInfos, const FMomentum CurrentMomentum, const FVector MoveInput,
+	                            const FMoverInputPool Inputs, UPARAM(ref) const TArray<FContingentMoveInfos>& ContingentMoves,
+	                            UPARAM(ref) const TArray<FTransientMoveInfos>& TransientMoves, UPARAM(ref) TMap<FName, FVector>& CustomProperties, UPARAM(ref) int& SurfacesFlag) const;
+
+	virtual bool CheckTransientMovement_Implementation(UPARAM(ref) const TArray<FExpandedHitResult>& Surfaces, const FTransientMoveInfos MoveInfos, const FMomentum CurrentMomentum,
+	                                                   const FVector MoveInput,
+	                                                   const FMoverInputPool Inputs, UPARAM(ref) const TArray<FContingentMoveInfos>& ContingentMoves,
+	                                                   UPARAM(ref) const TArray<FTransientMoveInfos>& TransientMoves, UPARAM(ref) TMap<FName, FVector>& CustomProperties,
+	                                                   UPARAM(ref) int& SurfacesFlag) const;
+
+
+	UFUNCTION(BlueprintImplementableEvent, Category="Modular Mover | Mover Movement Mode", meta = (BlueprintThreadSafe))
+	FMechanicProperties ProcessTransientMovement(const FMechanicProperties ContingentMove, const FTransientMoveInfos MoveInfos, const FMomentum CurrentMomentum, const FVector MoveInput,
+	                                             const FMoverInputPool Inputs,
+	                                             const float DeltaTime) const;
+
+	virtual FMechanicProperties ProcessTransientMovement_Implementation(const FMechanicProperties ContingentMove, const FTransientMoveInfos MoveInfos, const FMomentum CurrentMomentum,
+	                                                                    const FVector MoveInput,
+	                                                                    const FMoverInputPool Inputs, const float DeltaTime) const;
 };
 
 #pragma endregion
