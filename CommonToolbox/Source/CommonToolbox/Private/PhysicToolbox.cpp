@@ -28,12 +28,10 @@ FVector UPhysicToolbox::GetPointOnShapeInDirection(const FCollisionShape Shape, 
 			break;
 		case ECollisionShape::Box:
 			{
-				const FVector masterVector = localVector * Shape.GetExtent().Length();
-				const FVector fProject = masterVector.ProjectOnToNormal(FVector::ForwardVector).GetClampedToMaxSize(Shape.Box.HalfExtentX);
-				const FVector rProject = masterVector.ProjectOnToNormal(FVector::RightVector).GetClampedToMaxSize(Shape.Box.HalfExtentY);
-				const FVector uProject = masterVector.ProjectOnToNormal(FVector::UpVector).GetClampedToMaxSize(Shape.Box.HalfExtentZ);
-				point = fProject;
-				point = Transform.TransformPosition(point);
+				FVector intersect;
+				FBox box = FBox(Transform.GetLocation() - Shape.GetExtent(), Transform.GetLocation() + Shape.GetExtent());
+				UVectorToolbox::IntersectLineBox(box, Transform, Transform.GetLocation() + Direction * Shape.GetExtent().Length(), Transform.GetLocation(), intersect);
+				point = intersect;
 			}
 			break;
 		case ECollisionShape::Capsule:
