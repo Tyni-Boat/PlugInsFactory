@@ -27,6 +27,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Toolbox|Vectors", meta=(AdvancedDisplay=2, BlueprintThreadSafe))
 	static FVector Project2DInputs(FVector2D input, FTransform transformRelative, FVector planeNormal = FVector(0));
 
+	// Project a 3D Vector onto a plane and conserve it's lenght
+	UFUNCTION(BlueprintPure, Category = "Toolbox|Vectors", meta=(BlueprintThreadSafe))
+	static FVector Project3DVector(FVector inVector, FVector planeNormal);
+
 	//Get the vector translating point to surface impact point along an axis if provided
 	UFUNCTION(BlueprintPure, Category = "Toolbox|Vectors", meta=(BlueprintThreadSafe))
 	static FVector GetSnapOnSurfaceVector(const FVector point, const FHitResult surface, const FVector axis);
