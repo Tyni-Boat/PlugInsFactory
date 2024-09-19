@@ -60,7 +60,6 @@ struct COMMONTOOLBOX_API FExpandedHitResult
 	float SurfaceTraceDepth = 0;
 
 	//Query parameters used to detect this.
-	UPROPERTY()
 	FCollisionQueryParams QueryParams;
 };
 
