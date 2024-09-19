@@ -14,7 +14,7 @@
 #include "ModularMoverComponent.generated.h"
 
 
-#define OVERLAP_INFLATION 5
+#define OVERLAP_INFLATION 10
 #define DRAG_To_DAMPING 2.4026
 
 
@@ -178,6 +178,8 @@ protected:
 	TMap<FTraceHandle, FMoverCheckRequest> _chkRequestMap;
 	FVector _lastGravity = FVector(0, 0, -1);
 	bool _bMoveDisableCollision = false;
+	UPROPERTY()
+	TMap<UPrimitiveComponent*, FTransform> _lastSurfaceTransform;
 
 
 	UFUNCTION(BlueprintPure, Category="Mover|Physic")
@@ -198,6 +200,9 @@ protected:
 
 	// Check movement diff and trigger on move events
 	void EvaluateMovementDiff(const FMomentum Momentum, const FMoverInputPool InputPool);
+
+	// Check if a surface transform changed enough to trigger movement eval.
+	bool TrackSurfaceMovementUpdate(const TArray<FExpandedHitResult>& Surfaces);
 
 	// Run the solver when ever moved
 	void OnMoveCheck(UModularMoverComponent* Mover, FMoverCheckRequest Request);
@@ -294,7 +299,7 @@ public:
 	// Remove a Transient move mode
 	UFUNCTION(BlueprintCallable, Category="Mover|Movement Modes|Contingent", meta=(NotBlueprintThreadSafe))
 	void RemoveTransientMoveMode(FName MoveName);
-	
+
 
 	// Check Transient moves and select active Transient mode.
 	void CheckTransientMoves(const FMoverCheckRequest Request, const TArray<FExpandedHitResult> Surfaces);

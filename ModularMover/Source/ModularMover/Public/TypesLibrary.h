@@ -324,6 +324,10 @@ public:
 	// The current acceleration to apply (cm/s-2)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
 	FVector Acceleration = FVector(0);
+	
+	// The Snap vector. instantaneously displace the body teleporting physic. can cause clipping, use with care 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
+	FVector SnapDisplacement = FVector(0);
 
 	// The terminal velocity (cm/s)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
@@ -416,6 +420,9 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
 	FVector Gravity = FVector(0, 0, -1);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
+	TArray<FExpandedHitResult> Surfaces;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
 	ECollisionShapeNature ShapeType = ECollisionShapeNature::Line;
