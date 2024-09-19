@@ -49,7 +49,7 @@ bool UStdContinuousOnGroundMove::CheckContingentMovement_Implementation(const TA
 			const FVector finalLoc = CurrentMomentum.Transform.GetLocation() + fromLowPtVector;
 			const auto channel = ECollisionChannel::ECC_Pawn;
 			if (Surfaces[i].HitResult.Component.IsValid()
-				&& Surfaces[i].HitResult.Component->GetWorld()->OverlapBlockingTestByChannel(finalLoc, CurrentMomentum.Transform.GetRotation(), channel, shape))
+				&& Surfaces[i].HitResult.Component->GetWorld()->OverlapBlockingTestByChannel(finalLoc, CurrentMomentum.Transform.GetRotation(), channel, shape, Surfaces[i].QueryParams))
 			{
 				UDebugToolbox::DrawDebugCircleOnHit(Surfaces[i].HitResult, 10, FColor::Red, 0, 3);
 				continue;
