@@ -34,12 +34,13 @@ struct COMMONTOOLBOX_API FExpandedHitResult
 	{
 	}
 
-	FORCEINLINE FExpandedHitResult(FHitResult Hit, ECollisionResponse Response, ESurfaceTraceHitType Offset = ESurfaceTraceHitType::NormalHit, float depth = 0)
+	FORCEINLINE FExpandedHitResult(FHitResult Hit, ECollisionResponse Response, FCollisionQueryParams query, ESurfaceTraceHitType Offset = ESurfaceTraceHitType::NormalHit, float depth = 0)
 	{
 		HitResult = Hit;
 		CollisionResponse = Response;
 		OffsetType = Offset;
 		SurfaceTraceDepth = depth;
+		QueryParams = query;
 	}
 
 	// The actual hit result
@@ -57,6 +58,10 @@ struct COMMONTOOLBOX_API FExpandedHitResult
 	// How far did we "dig" to get this surface
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Extend")
 	float SurfaceTraceDepth = 0;
+
+	//Query parameters used to detect this.
+	UPROPERTY()
+	FCollisionQueryParams QueryParams;
 };
 
 
