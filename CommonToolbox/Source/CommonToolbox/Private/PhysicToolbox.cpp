@@ -80,7 +80,7 @@ void UPhysicToolbox::PostPhysicTrace_internal(const TArray<FHitResult>& Incoming
 	for (int j = 0; j < IncomingHits.Num(); j++)
 	{
 		auto queryType = IncomingHits[j].Component.IsValid()? IncomingHits[j].Component->GetCollisionResponseToChannel(Channel) : ECollisionResponse::ECR_Ignore;
-		outgoingHits.Add(FExpandedHitResult(IncomingHits[j], queryType));
+		outgoingHits.Add(FExpandedHitResult(IncomingHits[j], queryType, queryParams));
 		ESurfaceTraceHitType _offset = ESurfaceTraceHitType::NormalHit;
 		const float abs_penetrationStep = FMath::Abs(PenetrationStep);
 		FVector penetrationIniLocation = IncomingHits[j].ImpactPoint;
@@ -100,7 +100,7 @@ void UPhysicToolbox::PostPhysicTrace_internal(const TArray<FHitResult>& Incoming
 				{
 					_offset = ESurfaceTraceHitType::InnerHit;
 					penetrationIniLocation = inwardHit.ImpactPoint;
-					outgoingHits.Add(FExpandedHitResult(inwardHit, queryType, _offset, inwardHit.Distance));
+					outgoingHits.Add(FExpandedHitResult(inwardHit, queryType, queryParams, _offset, inwardHit.Distance));
 				}
 			}
 
@@ -113,7 +113,7 @@ void UPhysicToolbox::PostPhysicTrace_internal(const TArray<FHitResult>& Incoming
 				{
 					_offset = ESurfaceTraceHitType::OuterHit;
 					penetrationIniLocation = outwardHit.ImpactPoint;
-					outgoingHits.Add(FExpandedHitResult(outwardHit, queryType, _offset, outwardHit.Distance));
+					outgoingHits.Add(FExpandedHitResult(outwardHit, queryType, queryParams, _offset, outwardHit.Distance));
 				}
 			}
 
@@ -129,7 +129,7 @@ void UPhysicToolbox::PostPhysicTrace_internal(const TArray<FHitResult>& Incoming
 						break;
 					if (!deepHit.bStartPenetrating)
 					{
-						outgoingHits.Add(FExpandedHitResult(deepHit, queryType, _offset, deepHit.Distance + (penetrationPt - penetrationIniLocation).Length()));
+						outgoingHits.Add(FExpandedHitResult(deepHit, queryType, queryParams, _offset, deepHit.Distance + (penetrationPt - penetrationIniLocation).Length()));
 					}
 					penetrationPt += direction.GetSafeNormal() * FMath::Max(abs_penetrationStep, deepHit.Distance);
 					maxSubSurfaceHit--;
