@@ -7,15 +7,15 @@
 
 
 
-bool UStdContinuousFreeFall::CheckContingentMovement_Implementation(const TArray<FExpandedHitResult>& Surfaces, FContingentMoveInfos& MoveInfos, const FMomentum CurrentMomentum,
+bool UStdContinuousFreeFall::CheckContingentMovement_Implementation(const TArray<FExpandedHitResult>& Surfaces, FContingentMoveInfos& MoveInfos, const FMomentum& CurrentMomentum,
                                                                     const FVector MoveInput, const FMoverInputPool Inputs, const TArray<FContingentMoveInfos>& ContingentMoves, const TArray<FTransientMoveInfos>& TransientMoves,
                                                                     TMap<FName, FVector>& CustomProperties, int& SurfacesFlag) const
 {
 	return true;
 }
 
-FMechanicProperties UStdContinuousFreeFall::ProcessContingentMovement_Implementation(FContingentMoveInfos& MoveInfos, const FMomentum CurrentMomentum, const FVector MoveInput,
-	const FMoverInputPool Inputs, const float DeltaTime) const
+FMechanicProperties UStdContinuousFreeFall::ProcessContingentMovement_Implementation(FContingentMoveInfos& MoveInfos, const FMomentum& CurrentMomentum, const FVector MoveInput,
+                                                                                     const FMoverInputPool Inputs, const float DeltaTime) const
 {
 	FMechanicProperties result;
 	result.Gravity = GravityVector;

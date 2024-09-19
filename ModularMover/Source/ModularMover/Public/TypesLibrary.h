@@ -35,6 +35,15 @@ enum class EInputType: uint8
 	Rotation,
 };
 
+UENUM(BlueprintType)
+enum class ECollisionShapeNature: uint8
+{
+	Line,
+	Box,
+	Sphere,
+	Capsule
+};
+
 #pragma endregion
 
 #pragma region Structs
@@ -393,7 +402,6 @@ struct FMomentum
 	GENERATED_BODY()
 
 public:
-	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
 	FTransform Transform = FTransform();
 
@@ -408,8 +416,45 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
 	FVector Gravity = FVector(0, 0, -1);
-	
-	FCollisionShape Shape;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
+	ECollisionShapeNature ShapeType = ECollisionShapeNature::Line;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
+	FVector ShapeExtends = FVector(0);
+
+
+	FORCEINLINE FCollisionShape GetShape() const
+	{
+		switch (ShapeType)
+		{
+			case ECollisionShapeNature::Line: break;
+			case ECollisionShapeNature::Box: return FCollisionShape::MakeBox(ShapeExtends);
+			case ECollisionShapeNature::Sphere: return FCollisionShape::MakeSphere(ShapeExtends.X);
+			case ECollisionShapeNature::Capsule: return FCollisionShape::MakeCapsule(ShapeExtends);
+		}
+		return FCollisionShape();
+	}
+
+	FORCEINLINE void SetShape(FCollisionShape Shape)
+	{
+		ShapeExtends = Shape.GetExtent();
+		switch (Shape.ShapeType)
+		{
+			case ECollisionShape::Line: ShapeType = ECollisionShapeNature::Line;
+				break;
+			case ECollisionShape::Box: ShapeType = ECollisionShapeNature::Box;
+				break;
+			case ECollisionShape::Sphere:
+				{
+					ShapeType = ECollisionShapeNature::Sphere;
+					ShapeExtends.X = Shape.GetSphereRadius();
+				}
+				break;
+			case ECollisionShape::Capsule: ShapeType = ECollisionShapeNature::Capsule;
+				break;
+		}
+	}
 };
 
 USTRUCT(BlueprintType)
@@ -473,7 +518,7 @@ public:
 	{
 	}
 
-	FORCEINLINE FMoverCheckRequest(FMomentum momentum, FMoverInputPool inputs)
+	FORCEINLINE FMoverCheckRequest(const FMomentum& momentum, FMoverInputPool inputs)
 	{
 		Momentum = momentum;
 		InputPool.InputMap.Empty();
@@ -556,12 +601,13 @@ public:
 
 
 	UFUNCTION(BlueprintNativeEvent, Category="Modular Mover | Mover Movement Mode", meta = (BlueprintThreadSafe, AdvancedDisplay = 5))
-	bool CheckContingentMovement(UPARAM(ref) const TArray<FExpandedHitResult>& Surfaces, UPARAM(ref) FContingentMoveInfos& MoveInfos, const FMomentum CurrentMomentum, const FVector MoveInput,
+	bool CheckContingentMovement(UPARAM(ref) const TArray<FExpandedHitResult>& Surfaces, UPARAM(ref) FContingentMoveInfos& MoveInfos, const FMomentum& CurrentMomentum,
+	                             const FVector MoveInput,
 	                             const FMoverInputPool Inputs, UPARAM(ref) const TArray<FContingentMoveInfos>& ContingentMoves,
 	                             UPARAM(ref) const TArray<FTransientMoveInfos>& TransientMoves, UPARAM(ref) TMap<FName, FVector>& CustomProperties, UPARAM(ref) int& SurfacesFlag) const;
 
 	UFUNCTION(BlueprintCallable, Category="Modular Mover | Mover Movement Mode", meta = (BlueprintThreadSafe, AdvancedDisplay = 5))
-	virtual bool CheckContingentMovement_Implementation(UPARAM(ref) const TArray<FExpandedHitResult>& Surfaces, UPARAM(ref) FContingentMoveInfos& MoveInfos, const FMomentum CurrentMomentum,
+	virtual bool CheckContingentMovement_Implementation(UPARAM(ref) const TArray<FExpandedHitResult>& Surfaces, UPARAM(ref) FContingentMoveInfos& MoveInfos, const FMomentum& CurrentMomentum,
 	                                                    const FVector MoveInput,
 	                                                    const FMoverInputPool Inputs,UPARAM(ref) const TArray<FContingentMoveInfos>& ContingentMoves,
 	                                                    UPARAM(ref) const TArray<FTransientMoveInfos>& TransientMoves, UPARAM(ref) TMap<FName, FVector>& CustomProperties,
@@ -569,11 +615,11 @@ public:
 
 
 	UFUNCTION(BlueprintNativeEvent, Category="Modular Mover | Mover Movement Mode", meta = (BlueprintThreadSafe))
-	FMechanicProperties ProcessContingentMovement(UPARAM(ref) FContingentMoveInfos& MoveInfos, const FMomentum CurrentMomentum, const FVector MoveInput, const FMoverInputPool Inputs,
+	FMechanicProperties ProcessContingentMovement(UPARAM(ref) FContingentMoveInfos& MoveInfos, const FMomentum& CurrentMomentum, const FVector MoveInput, const FMoverInputPool Inputs,
 	                                              const float DeltaTime) const;
 
 	UFUNCTION(BlueprintCallable, Category="Modular Mover | Mover Movement Mode", meta = (BlueprintThreadSafe))
-	virtual FMechanicProperties ProcessContingentMovement_Implementation(UPARAM(ref) FContingentMoveInfos& MoveInfos, const FMomentum CurrentMomentum, const FVector MoveInput,
+	virtual FMechanicProperties ProcessContingentMovement_Implementation(UPARAM(ref) FContingentMoveInfos& MoveInfos, const FMomentum& CurrentMomentum, const FVector MoveInput,
 	                                                                     const FMoverInputPool Inputs, const float DeltaTime) const;
 };
 
@@ -592,12 +638,12 @@ public:
 
 
 	UFUNCTION(BlueprintNativeEvent, Category="Modular Mover | Mover Movement Mode", meta = (BlueprintThreadSafe, AdvancedDisplay = 5))
-	bool CheckTransientMovement(UPARAM(ref) const TArray<FExpandedHitResult>& Surfaces, UPARAM(ref) FTransientMoveInfos& MoveInfos, const FMomentum CurrentMomentum, const FVector MoveInput,
+	bool CheckTransientMovement(UPARAM(ref) const TArray<FExpandedHitResult>& Surfaces, UPARAM(ref) FTransientMoveInfos& MoveInfos, const FMomentum& CurrentMomentum, const FVector MoveInput,
 	                            const FMoverInputPool Inputs, UPARAM(ref) const TArray<FContingentMoveInfos>& ContingentMoves,
 	                            UPARAM(ref) const TArray<FTransientMoveInfos>& TransientMoves, UPARAM(ref) TMap<FName, FVector>& CustomProperties, UPARAM(ref) int& SurfacesFlag) const;
 
 	UFUNCTION(BlueprintCallable, Category="Modular Mover | Mover Movement Mode", meta = (BlueprintThreadSafe, AdvancedDisplay = 5))
-	virtual bool CheckTransientMovement_Implementation(UPARAM(ref) const TArray<FExpandedHitResult>& Surfaces, UPARAM(ref) FTransientMoveInfos& MoveInfos, const FMomentum CurrentMomentum,
+	virtual bool CheckTransientMovement_Implementation(UPARAM(ref) const TArray<FExpandedHitResult>& Surfaces, UPARAM(ref) FTransientMoveInfos& MoveInfos, const FMomentum& CurrentMomentum,
 	                                                   const FVector MoveInput,
 	                                                   const FMoverInputPool Inputs, UPARAM(ref) const TArray<FContingentMoveInfos>& ContingentMoves,
 	                                                   UPARAM(ref) const TArray<FTransientMoveInfos>& TransientMoves, UPARAM(ref) TMap<FName, FVector>& CustomProperties,
@@ -605,12 +651,13 @@ public:
 
 
 	UFUNCTION(BlueprintNativeEvent, Category="Modular Mover | Mover Movement Mode", meta = (BlueprintThreadSafe))
-	FMechanicProperties ProcessTransientMovement(const FMechanicProperties ContingentMove, UPARAM(ref) FTransientMoveInfos& MoveInfos, const FMomentum CurrentMomentum, const FVector MoveInput,
+	FMechanicProperties ProcessTransientMovement(const FMechanicProperties ContingentMove, UPARAM(ref) FTransientMoveInfos& MoveInfos, const FMomentum& CurrentMomentum,
+	                                             const FVector MoveInput,
 	                                             const FMoverInputPool Inputs,
 	                                             const float DeltaTime) const;
 
 	UFUNCTION(BlueprintCallable, Category="Modular Mover | Mover Movement Mode", meta = (BlueprintThreadSafe))
-	virtual FMechanicProperties ProcessTransientMovement_Implementation(const FMechanicProperties ContingentMove, UPARAM(ref) FTransientMoveInfos& MoveInfos, const FMomentum CurrentMomentum,
+	virtual FMechanicProperties ProcessTransientMovement_Implementation(const FMechanicProperties ContingentMove, UPARAM(ref) FTransientMoveInfos& MoveInfos, const FMomentum& CurrentMomentum,
 	                                                                    const FVector MoveInput,
 	                                                                    const FMoverInputPool Inputs, const float DeltaTime) const;
 };
