@@ -157,7 +157,7 @@ struct MODULARMOVER_API FSurface
 
 	FSurface();
 
-	FSurface(FBodyInstance physicBody, FHitResult hit, ESurfaceTraceHitType offsetType = ESurfaceTraceHitType::NormalHit);
+	FSurface(const FBodyInstance* physicBody, FHitResult hit, ESurfaceTraceHitType offsetType = ESurfaceTraceHitType::NormalHit);
 
 	// the hit ray from witch the surface were detected. 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Surface")
@@ -188,7 +188,7 @@ struct MODULARMOVER_API FSurface
 	bool UpdateTracking(float deltaTime);
 
 	// Update information about the hit
-	void UpdateHit(FBodyInstance physicBody, FHitResult hit, ESurfaceTraceHitType offsetType);
+	void UpdateHit(const FBodyInstance* physicBody, FHitResult hit, ESurfaceTraceHitType offsetType);
 
 	// Apply a force on the surface at a point on it and return the velocity of the surface at the point before force application. use reaction to apply force only if it's opposed to the surface normal
 	FVector ApplyForceAtOnSurface(const FVector point, const FVector force, bool reactionForce = false) const;
@@ -374,6 +374,7 @@ public:
 	FORCEINLINE void Scale(const float amount)
 	{
 		Linear.Acceleration *= amount;
+		Linear.SnapDisplacement *= amount;
 		Linear.DecelerationSpeed *= amount;
 		Linear.TerminalVelocity *= amount;
 		Angular.LookOrientation *= amount;
@@ -388,6 +389,7 @@ public:
 	{
 		FMechanicProperties result;
 		result.Linear.Acceleration = this->Linear.Acceleration + other.Linear.Acceleration;
+		result.Linear.SnapDisplacement = this->Linear.SnapDisplacement + other.Linear.SnapDisplacement;
 		result.Linear.DecelerationSpeed = this->Linear.DecelerationSpeed + other.Linear.DecelerationSpeed;
 		result.Linear.TerminalVelocity = this->Linear.TerminalVelocity + other.Linear.TerminalVelocity;
 
@@ -422,7 +424,7 @@ public:
 	FVector Gravity = FVector(0, 0, -1);
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
-	TArray<FExpandedHitResult> Surfaces;
+	TArray<FSurface> Surfaces;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
 	ECollisionShapeNature ShapeType = ECollisionShapeNature::Line;
@@ -500,7 +502,7 @@ public:
 	FName ModeName = NAME_None;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
-	TArray<FExpandedHitResult> Surfaces;
+	TArray<FSurface> Surfaces;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
 	FVector ScanSurfaceVector = FVector(0);
@@ -525,19 +527,23 @@ public:
 	{
 	}
 
-	FORCEINLINE FMoverCheckRequest(const FMomentum& momentum, FMoverInputPool inputs)
+	FORCEINLINE FMoverCheckRequest(FBodyInstance* moverBody, const FMomentum& momentum, FMoverInputPool inputs)
 	{
+		MoverBody = moverBody;
 		Momentum = momentum;
 		InputPool.InputMap.Empty();
 		for (auto input : inputs.InputMap)
 			InputPool.InputMap.Add(input);
 	}
-
+	
+	FBodyInstance* MoverBody;
+	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
 	FMomentum Momentum;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
 	FMoverInputPool InputPool;
+	
 };
 
 
@@ -647,14 +653,13 @@ public:
 	UFUNCTION(BlueprintNativeEvent, Category="Modular Mover | Mover Movement Mode", meta = (BlueprintThreadSafe, AdvancedDisplay = 5))
 	bool CheckTransientMovement(UPARAM(ref) const TArray<FExpandedHitResult>& Surfaces, UPARAM(ref) FTransientMoveInfos& MoveInfos, const FMomentum& CurrentMomentum, const FVector MoveInput,
 	                            const FMoverInputPool Inputs, UPARAM(ref) const TArray<FContingentMoveInfos>& ContingentMoves,
-	                            UPARAM(ref) const TArray<FTransientMoveInfos>& TransientMoves, UPARAM(ref) TMap<FName, FVector>& CustomProperties, UPARAM(ref) int& SurfacesFlag) const;
+	                            UPARAM(ref) const TArray<FTransientMoveInfos>& TransientMoves, UPARAM(ref) TMap<FName, FVector>& CustomProperties) const;
 
 	UFUNCTION(BlueprintCallable, Category="Modular Mover | Mover Movement Mode", meta = (BlueprintThreadSafe, AdvancedDisplay = 5))
 	virtual bool CheckTransientMovement_Implementation(UPARAM(ref) const TArray<FExpandedHitResult>& Surfaces, UPARAM(ref) FTransientMoveInfos& MoveInfos, const FMomentum& CurrentMomentum,
 	                                                   const FVector MoveInput,
 	                                                   const FMoverInputPool Inputs, UPARAM(ref) const TArray<FContingentMoveInfos>& ContingentMoves,
-	                                                   UPARAM(ref) const TArray<FTransientMoveInfos>& TransientMoves, UPARAM(ref) TMap<FName, FVector>& CustomProperties,
-	                                                   UPARAM(ref) int& SurfacesFlag) const;
+	                                                   UPARAM(ref) const TArray<FTransientMoveInfos>& TransientMoves, UPARAM(ref) TMap<FName, FVector>& CustomProperties) const;
 
 
 	UFUNCTION(BlueprintNativeEvent, Category="Modular Mover | Mover Movement Mode", meta = (BlueprintThreadSafe))

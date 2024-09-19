@@ -30,7 +30,10 @@ bool UStdContinuousOnGroundMove::CheckContingentMovement_Implementation(const TA
 	//Collect surfaces meeting conditions
 	for (int i = 0; i < Surfaces.Num(); i++)
 	{
+		UDebugToolbox::DrawDebugCircleOnHit(Surfaces[i].HitResult, 10, FColor::Orange);
 		if(Surfaces[i].CollisionResponse != ECR_Block)
+			continue;
+		if(Surfaces[i].OffsetType == ESurfaceTraceHitType::OuterHit)
 			continue;
 		const FVector fromCenterVector = Surfaces[i].HitResult.ImpactPoint - CurrentMomentum.Transform.GetLocation();
 		const FVector fromLowPtVector = Surfaces[i].HitResult.ImpactPoint - lowestPoint;
@@ -38,14 +41,13 @@ bool UStdContinuousOnGroundMove::CheckContingentMovement_Implementation(const TA
 		const FVector surfaceLowHeightVector = fromLowPtVector.ProjectOnToNormal(upVector);
 		const float centerDot = upVector | fromCenterVector;
 		const float verticalDot = upVector | fromLowPtVector;
-		// if (verticalDot > 0 && surfaceHeightVector.Length() > MaxStepHeight)
-		// 	continue;
-		// if (verticalDot < 0 && surfaceHeightVector.Length() > MaxGroundDistance)
-		// 	continue;
+		if (verticalDot > 0 && surfaceLowHeightVector.Length() > MaxStepHeight)
+			continue;
+		if (verticalDot < 0 && surfaceLowHeightVector.Length() > MaxGroundDistance)
+			continue;
 		const float angle = FMath::Acos(Surfaces[i].HitResult.ImpactNormal | upVector);
-		// if (angle > FMath::DegreesToRadians(88))
-		// 	continue;
-		UDebugToolbox::DrawDebugCircleOnHit(Surfaces[i].HitResult, 10, FColor::Orange);
+		if (angle > FMath::DegreesToRadians(88))
+			continue;
 		if (surfaceCenterHeightVector.Length() >= bestDistance)
 		{
 			if (surfaceCenterHeightVector.Length() != bestDistance)

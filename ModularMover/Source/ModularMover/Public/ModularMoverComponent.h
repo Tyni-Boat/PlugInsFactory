@@ -64,7 +64,7 @@ public:
 	virtual void AsyncPhysicsTickComponent(float DeltaTime, float SimTime) override;
 
 	// Evaluate continuous and instantaneous movement modes as well as Traversals
-	void EvaluateMovementOnSurfaces(const FMoverCheckRequest Request, TArray<FExpandedHitResult> Surfaces);
+	void EvaluateMovementOnSurfaces(const FMoverCheckRequest Request, TArray<FExpandedHitResult> SurfacesHits);
 
 
 #pragma region Inputs
@@ -199,10 +199,10 @@ protected:
 	}
 
 	// Check movement diff and trigger on move events
-	void EvaluateMovementDiff(const FMomentum Momentum, const FMoverInputPool InputPool);
+	void EvaluateMovementDiff(FBodyInstance* Body, const FMomentum Momentum, const FMoverInputPool InputPool);
 
 	// Check if a surface transform changed enough to trigger movement eval.
-	bool TrackSurfaceMovementUpdate(const TArray<FExpandedHitResult>& Surfaces);
+	bool TrackSurfaceMovementUpdate(const TArray<FSurface>& Surfaces);
 
 	// Run the solver when ever moved
 	void OnMoveCheck(UModularMoverComponent* Mover, FMoverCheckRequest Request);
@@ -274,7 +274,7 @@ public:
 
 
 	// Check contingent moves and select active contingent mode.
-	void CheckContingentMoves(const FMoverCheckRequest Request, const TArray<FExpandedHitResult> Surfaces);
+	void CheckContingentMoves(const FMoverCheckRequest Request, const TArray<FExpandedHitResult> SurfacesHits);
 
 
 	// Process and blend actives contingent movements in an async manner (transitions from mode to mode are done at different speeds)

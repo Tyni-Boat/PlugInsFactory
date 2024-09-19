@@ -116,6 +116,16 @@ void UModularMoverComponent::AsyncPhysicsTickComponent(float DeltaTime, float Si
 			const FString ThreadName = FThreadManager::Get().GetThreadName(ThreadId);
 			UKismetSystemLibrary::PrintString(this, FString::Printf(TEXT("AsyncPhysicsTickComponent at %f FPS from %s"), UConversionToolbox::DeltaTimeToFPS(DeltaTime), *ThreadName)
 			                                  , true, false, FColor::Red, 0, "ModeName");
+			//Update surfaces
+			if (ActiveContingentMove.IsValid())
+			{
+				for (int i = 0; i < ActiveContingentMove.Surfaces.Num(); i++)
+				{
+					ActiveContingentMove.Surfaces[i].UpdateTracking(DeltaTime);
+				}
+			}
+
+			//Building Momentum
 			FMomentum currentMomentum;
 			currentMomentum.Transform = UPhysicToolbox::GetRigidBodyTransform(BodyInstance);
 			currentMomentum.LinearVelocity = UPhysicToolbox::GetRigidBodyLinearVelocity(BodyInstance);
@@ -123,14 +133,21 @@ void UModularMoverComponent::AsyncPhysicsTickComponent(float DeltaTime, float Si
 			currentMomentum.Mass = GetMass();
 			currentMomentum.Gravity = _lastGravity;
 			currentMomentum.SetShape(UpdatedPrimitive->GetCollisionShape());
-			currentMomentum.Surfaces = ActiveTransientMove.IsValid() && ActiveTransientMove.Surfaces.Num() > 0 ? ActiveTransientMove.Surfaces : ActiveContingentMove.Surfaces;
+			currentMomentum.Surfaces = ActiveContingentMove.Surfaces;
 
-			EvaluateMovementDiff(currentMomentum, _inputPool);
+			// Check modifications
+			EvaluateMovementDiff(BodyInstance, currentMomentum, _inputPool);
+			if (DebugMode == EDebugMode::SurfaceDetection)
+			{
+				for (const auto surface : currentMomentum.Surfaces)
+				{
+					UDebugToolbox::DrawDebugCircleOnHit(surface.HitResult, 20, FColor::Green);
+					UKismetSystemLibrary::DrawDebugArrow(this, surface.HitResult.ImpactPoint,
+					                                     surface.HitResult.ImpactPoint + surface.GetVelocityAt(currentMomentum.Transform.GetLocation(), DeltaTime), 20, FColor::Green);
+				}
+			}
 
 			// Process and blend
-			const bool validSurface = currentMomentum.Surfaces.IsValidIndex(0);
-			if (validSurface)
-				UDebugToolbox::DrawDebugCircleOnHit(currentMomentum.Surfaces[0].HitResult, 20, FColor::Green);
 			FMechanicProperties move = ProcessContingentMoves(currentMomentum, DeltaTime);
 			move = ProcessTransientMoves(move, currentMomentum, DeltaTime);
 
@@ -146,20 +163,20 @@ void UModularMoverComponent::AsyncPhysicsTickComponent(float DeltaTime, float Si
 	Super::AsyncPhysicsTickComponent(DeltaTime, SimTime);
 }
 
-void UModularMoverComponent::EvaluateMovementOnSurfaces(const FMoverCheckRequest Request, TArray<FExpandedHitResult> Surfaces)
+void UModularMoverComponent::EvaluateMovementOnSurfaces(const FMoverCheckRequest Request, TArray<FExpandedHitResult> SurfacesHits)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("EvaluateMovementOnSurfaces");
 
-	CheckContingentMoves(Request, Surfaces);
-	CheckTransientMoves(Request, Surfaces);
+	CheckContingentMoves(Request, SurfacesHits);
+	CheckTransientMoves(Request, SurfacesHits);
 
 	if (DebugMode == EDebugMode::SurfaceDetection)
 	{
-		for (int i = 0; i < Surfaces.Num(); i++)
+		for (int i = 0; i < SurfacesHits.Num(); i++)
 		{
-			if (Surfaces[i].HitResult.GetComponent())
+			if (SurfacesHits[i].HitResult.GetComponent())
 			{
-				UDebugToolbox::DrawDebugCircleOnHit(Surfaces[i].HitResult, 10, FColor::White, 0, 0.5);
+				UDebugToolbox::DrawDebugCircleOnHit(SurfacesHits[i].HitResult, 10, FColor::White, 0, 0.5);
 			}
 		}
 	}
@@ -198,7 +215,7 @@ void UModularMoverComponent::AddVectorInput(const FName InputName, const FVector
 		instantMomentum.AngularVelocity = UpdatedPrimitive->GetPhysicsAngularVelocityInRadians();
 		instantMomentum.Gravity = _lastGravity;
 		instantMomentum.Mass = GetMass();
-		OnMoveCheck(this, FMoverCheckRequest(instantMomentum, _inputPool));
+		OnMoveCheck(this, FMoverCheckRequest(UpdatedPrimitive->GetBodyInstance(), instantMomentum, _inputPool));
 	}
 }
 
@@ -226,7 +243,7 @@ void UModularMoverComponent::AddRotationInput(const FName InputName, const FRota
 		instantMomentum.AngularVelocity = UpdatedPrimitive->GetPhysicsAngularVelocityInRadians();
 		instantMomentum.Gravity = _lastGravity;
 		instantMomentum.Mass = GetMass();
-		OnMoveCheck(this, FMoverCheckRequest(instantMomentum, _inputPool));
+		OnMoveCheck(this, FMoverCheckRequest(UpdatedPrimitive->GetBodyInstance(), instantMomentum, _inputPool));
 	}
 }
 
@@ -254,7 +271,7 @@ void UModularMoverComponent::AddValueInput(const FName InputName, const float Va
 		instantMomentum.AngularVelocity = UpdatedPrimitive->GetPhysicsAngularVelocityInRadians();
 		instantMomentum.Gravity = _lastGravity;
 		instantMomentum.Mass = GetMass();
-		OnMoveCheck(this, FMoverCheckRequest(instantMomentum, _inputPool));
+		OnMoveCheck(this, FMoverCheckRequest(UpdatedPrimitive->GetBodyInstance(), instantMomentum, _inputPool));
 	}
 }
 
@@ -282,7 +299,7 @@ void UModularMoverComponent::AddTriggerInput(const FName InputName, const float 
 		instantMomentum.AngularVelocity = UpdatedPrimitive->GetPhysicsAngularVelocityInRadians();
 		instantMomentum.Gravity = _lastGravity;
 		instantMomentum.Mass = GetMass();
-		OnMoveCheck(this, FMoverCheckRequest(instantMomentum, _inputPool));
+		OnMoveCheck(this, FMoverCheckRequest(UpdatedPrimitive->GetBodyInstance(), instantMomentum, _inputPool));
 	}
 }
 
@@ -368,7 +385,7 @@ float UModularMoverComponent::GetCurrentScanSurfaceOffset() const
 }
 
 
-void UModularMoverComponent::EvaluateMovementDiff(const FMomentum Momentum, const FMoverInputPool InputPool)
+void UModularMoverComponent::EvaluateMovementDiff(FBodyInstance* Body, const FMomentum Momentum, const FMoverInputPool InputPool)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("EvaluateMovementDiff");
 	const FVector _curLocation = Momentum.Transform.GetLocation();
@@ -381,7 +398,7 @@ void UModularMoverComponent::EvaluateMovementDiff(const FMomentum Momentum, cons
 	diff.ToAxisAndAngle(axis, angle);
 	if ((_curLocation - _lastLocation_trigger).Length() > MoveTriggerTolerance || FMath::RadiansToDegrees(angle) > RotateTriggerTolerance || TrackSurfaceMovementUpdate(Momentum.Surfaces))
 	{
-		OnComponentMoved.Broadcast(this, FMoverCheckRequest(Momentum, InputPool));
+		OnComponentMoved.Broadcast(this, FMoverCheckRequest(Body, Momentum, InputPool));
 		_lastLocation_trigger = _curLocation;
 		_lastRotation_trigger = _curRotation;
 	}
@@ -403,7 +420,8 @@ void UModularMoverComponent::EvaluateMovementDiff(const FMomentum Momentum, cons
 	}
 }
 
-bool UModularMoverComponent::TrackSurfaceMovementUpdate(const TArray<FExpandedHitResult>& Surfaces)
+
+bool UModularMoverComponent::TrackSurfaceMovementUpdate(const TArray<FSurface>& Surfaces)
 {
 	bool mustUpdate = false;
 	//Check
@@ -539,10 +557,10 @@ bool UModularMoverComponent::DetectOverlapHits(const FTransform Transform, TArra
 		FHitResult hit;
 		hit.Normal = scanVector.GetSafeNormal();
 		hit.ImpactNormal = scanVector.GetSafeNormal();
-		hit.ImpactPoint = location - offset;
+		hit.ImpactPoint = UPhysicToolbox::GetPointOnShapeInDirection(shape, Transform, -scanVector) - offset;
 		hit.Component = UpdatedPrimitive;
 		UDebugToolbox::DrawDebugCircleOnHit(hit, 40, FColor::Cyan, 0, 0.5);
-		hit.ImpactPoint = location + scanVector + offset;
+		hit.ImpactPoint = UPhysicToolbox::GetPointOnShapeInDirection(shape, Transform, scanVector) + scanVector + offset;
 		UDebugToolbox::DrawDebugCircleOnHit(hit, 40, FColor::Cyan, 0, 0.5);
 	}
 	FCollisionQueryParams query = FCollisionQueryParams::DefaultQueryParam;
@@ -571,10 +589,10 @@ FTraceHandle UModularMoverComponent::AsyncDetectOverlapHits(const FTransform Tra
 		FHitResult hit;
 		hit.Normal = scanVector.GetSafeNormal();
 		hit.ImpactNormal = scanVector.GetSafeNormal();
-		hit.ImpactPoint = location - offset;
+		hit.ImpactPoint = UPhysicToolbox::GetPointOnShapeInDirection(shape, Transform, -scanVector) - offset;
 		hit.Component = UpdatedPrimitive;
 		UDebugToolbox::DrawDebugCircleOnHit(hit, 40, FColor::Cyan, 0, 0.5);
-		hit.ImpactPoint = location + scanVector + offset;
+		hit.ImpactPoint = UPhysicToolbox::GetPointOnShapeInDirection(shape, Transform, scanVector) + scanVector + offset;
 		UDebugToolbox::DrawDebugCircleOnHit(hit, 40, FColor::Cyan, 0, 0.5);
 	}
 	FCollisionQueryParams query = FCollisionQueryParams::DefaultQueryParam;
@@ -705,7 +723,7 @@ void UModularMoverComponent::RemoveContingentMoveMode(FName MoveName)
 	}
 }
 
-void UModularMoverComponent::CheckContingentMoves(const FMoverCheckRequest Request, const TArray<FExpandedHitResult> Surfaces)
+void UModularMoverComponent::CheckContingentMoves(const FMoverCheckRequest Request, const TArray<FExpandedHitResult> SurfacesHits)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("CheckContingentMoves");
 	if (!_subSystem)
@@ -717,7 +735,7 @@ void UModularMoverComponent::CheckContingentMoves(const FMoverCheckRequest Reque
 		if (const auto MovementMode = _subSystem->GetContingentMoveObject(ContingentMoveState[i].BaseInfos.ModeName))
 		{
 			int surfacesIndexesFlag = 0;
-			if (MovementMode->CheckContingentMovement(Surfaces, ContingentMoveState[i], Request.Momentum, _movementInput, Request.InputPool, ContingentMoveState, TransientMoveState,
+			if (MovementMode->CheckContingentMovement(SurfacesHits, ContingentMoveState[i], Request.Momentum, _movementInput, Request.InputPool, ContingentMoveState, TransientMoveState,
 			                                          CustomProperties, surfacesIndexesFlag))
 			{
 				//enqueue
@@ -749,16 +767,27 @@ void UModularMoverComponent::CheckContingentMoves(const FMoverCheckRequest Reque
 	//check changes in active
 	if (ActiveContingentMove.IsValid() && ActiveContingentMove.ModeName == ContingentMoveState[masterIndex].BaseInfos.ModeName)
 	{
-		ActiveContingentMove.Surfaces.Empty();
 		auto surfaceActives = UConversionToolbox::FlagToBoolArray(masterSurfaceFlag);
+		TArray<FSurface> updatedSurfaces;
 		for (int i = 0; i < surfaceActives.Num(); i++)
 		{
-			if (!Surfaces.IsValidIndex(i))
+			if (!SurfacesHits.IsValidIndex(i))
 				continue;
 			if (!surfaceActives[i])
 				continue;
-			ActiveContingentMove.Surfaces.Add(Surfaces[i]);
+			const int surfaceIndex = ActiveContingentMove.Surfaces.IndexOfByPredicate([SurfacesHits, i](const FSurface& s)-> bool
+			{
+				return s.HitResult.Component == SurfacesHits[i].HitResult.Component;
+			});
+			if (!ActiveContingentMove.Surfaces.IsValidIndex(surfaceIndex))
+			{
+				updatedSurfaces.Add(FSurface(Request.MoverBody, SurfacesHits[i].HitResult, SurfacesHits[i].OffsetType));
+				continue;
+			}
+			ActiveContingentMove.Surfaces[surfaceIndex].UpdateHit(Request.MoverBody, SurfacesHits[i].HitResult, SurfacesHits[i].OffsetType);
+			updatedSurfaces.Add(ActiveContingentMove.Surfaces[surfaceIndex]);
 		}
+		ActiveContingentMove.Surfaces = updatedSurfaces;
 		return;
 	}
 	// Set new active
@@ -768,11 +797,11 @@ void UModularMoverComponent::CheckContingentMoves(const FMoverCheckRequest Reque
 		auto surfaceActives = UConversionToolbox::FlagToBoolArray(masterSurfaceFlag);
 		for (int i = 0; i < surfaceActives.Num(); i++)
 		{
-			if (!Surfaces.IsValidIndex(i))
+			if (!SurfacesHits.IsValidIndex(i))
 				continue;
 			if (!surfaceActives[i])
 				continue;
-			selection.Surfaces.Add(Surfaces[i]);
+			selection.Surfaces.Add(FSurface(Request.MoverBody, SurfacesHits[i].HitResult, SurfacesHits[i].OffsetType));
 		}
 		selection.ScanSurfaceOffset = MovementMode->ScanSurfaceOffset;
 		selection.ScanSurfaceVector = MovementMode->ScanSurfaceVector;
@@ -830,7 +859,9 @@ FMechanicProperties UModularMoverComponent::ProcessContingentMoves(const FMoment
 				move = MovementMode->ProcessContingentMovement(ContingentMoveState[activeIndex], currentMomentum, _movementInput, _inputPool, DeltaTime);
 				ContingentMoveState[activeIndex].BaseInfos.ModeName = name;
 				// Blend values
+				const FVector snap = move.Linear.SnapDisplacement;
 				move.Scale(activeWeight);
+				move.Linear.SnapDisplacement = snap;
 			}
 		}
 
@@ -858,8 +889,10 @@ FMechanicProperties UModularMoverComponent::ProcessContingentMoves(const FMoment
 					const float blendValue = FMath::Min(blendLeft, ContingentMoveState[i].BaseInfos.CurrentWeight);
 					auxMove.Scale(blendValue);
 					bool ignoreCol = move.IgnoreCollision;
+					const FVector snap = move.Linear.SnapDisplacement;
 					move = move + auxMove;
 					move.IgnoreCollision = ignoreCol;
+					move.Linear.SnapDisplacement = snap;
 					blendLeft -= blendValue;
 
 					//Debug
@@ -934,19 +967,17 @@ void UModularMoverComponent::CheckTransientMoves(const FMoverCheckRequest Reques
 		//check
 		if (const auto MovementMode = _subSystem->GetTransientMoveObject(TransientMoveState[i].BaseInfos.ModeName))
 		{
-			int surfacesIndexesFlag = 0;
 			if (MovementMode->CheckTransientMovement(Surfaces, TransientMoveState[i], Request.Momentum, _movementInput, Request.InputPool, ContingentMoveState, TransientMoveState,
-			                                         CustomProperties, surfacesIndexesFlag))
+			                                         CustomProperties))
 			{
 				//enqueue
-				_chkTransientQueue.Enqueue(FVector(i, TransientMoveState[i].BaseInfos.Priority, surfacesIndexesFlag));
+				_chkTransientQueue.Enqueue(FVector(i, TransientMoveState[i].BaseInfos.Priority, 0));
 			}
 		}
 	}
 
 	int masterPriority = -1;
 	int masterIndex = -1;
-	int masterSurfaceFlag = 0;
 	FVector item;
 	while (_chkTransientQueue.Dequeue(item))
 	{
@@ -957,8 +988,6 @@ void UModularMoverComponent::CheckTransientMoves(const FMoverCheckRequest Reques
 		masterIndex = item.X;
 		//set high priority
 		masterPriority = item.Y;
-		//set surface flag
-		masterSurfaceFlag = item.Z;
 	}
 
 	if (!TransientMoveState.IsValidIndex(masterIndex))
@@ -968,15 +997,6 @@ void UModularMoverComponent::CheckTransientMoves(const FMoverCheckRequest Reques
 	if (const auto MovementMode = _subSystem->GetTransientMoveObject(TransientMoveState[masterIndex].BaseInfos.ModeName))
 	{
 		FMoverModeSelection selection = FMoverModeSelection();
-		auto surfaceActives = UConversionToolbox::FlagToBoolArray(masterSurfaceFlag);
-		for (int i = 0; i < surfaceActives.Num(); i++)
-		{
-			if (!Surfaces.IsValidIndex(i))
-				continue;
-			if (!surfaceActives[i])
-				continue;
-			selection.Surfaces.Add(Surfaces[i]);
-		}
 		selection.ModeName = TransientMoveState[masterIndex].BaseInfos.ModeName;
 
 		ActiveTransientMove = selection;
@@ -1028,7 +1048,9 @@ FMechanicProperties UModularMoverComponent::ProcessTransientMoves(const FMechani
 				move = MovementMode->ProcessTransientMovement(ContingentMoveResult, TransientMoveState[activeIndex], currentMomentum, _movementInput, _inputPool, DeltaTime);
 				TransientMoveState[activeIndex].BaseInfos.ModeName = name;
 				// Blend values
+				const FVector snap = move.Linear.SnapDisplacement;
 				move.Scale(activeWeight);
+				move.Linear.SnapDisplacement = snap;
 			}
 		}
 
@@ -1074,8 +1096,10 @@ FMechanicProperties UModularMoverComponent::ProcessTransientMoves(const FMechani
 				const float blendValue = FMath::Min(blendLeft, TransientMoveState[i].BaseInfos.CurrentWeight);
 				auxMove.Scale(blendValue);
 				bool ignoreCol = move.IgnoreCollision;
+				const FVector snap = move.Linear.SnapDisplacement;
 				move = move + auxMove;
 				move.IgnoreCollision = ignoreCol;
+				move.Linear.SnapDisplacement = snap;
 				blendLeft -= blendValue;
 
 				//Debug

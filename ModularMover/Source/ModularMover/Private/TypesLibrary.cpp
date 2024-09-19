@@ -19,7 +19,7 @@ FSurface::FSurface()
 {
 }
 
-FSurface::FSurface(FBodyInstance physicBody, FHitResult hit, ESurfaceTraceHitType offsetType)
+FSurface::FSurface(const FBodyInstance* physicBody, FHitResult hit, ESurfaceTraceHitType offsetType)
 {
 	UpdateHit(physicBody, hit, offsetType);
 }
@@ -61,7 +61,7 @@ bool FSurface::UpdateTracking(float deltaTime)
 	return validSurface;
 }
 
-void FSurface::UpdateHit(FBodyInstance physicBody, FHitResult hit, ESurfaceTraceHitType offsetType)
+void FSurface::UpdateHit(const FBodyInstance* physicBody, FHitResult hit, ESurfaceTraceHitType offsetType)
 {
 	if (HitResult.BoneName != hit.BoneName)
 	{
@@ -75,8 +75,8 @@ void FSurface::UpdateHit(FBodyInstance physicBody, FHitResult hit, ESurfaceTrace
 	bCanStepOn = hit.Component.IsValid()
 		             ? (hit.GetComponent()->CanCharacterStepUpOn == ECB_Owner || hit.GetComponent()->CanCharacterStepUpOn == ECB_Yes)
 		             : false;
-	QueryResponse = hit.Component.IsValid() && physicBody.OwnerComponent.IsValid()
-		                ? hit.GetComponent()->GetCollisionResponseToComponent(physicBody.OwnerComponent.Get())
+	QueryResponse = hit.Component.IsValid() && physicBody && physicBody->OwnerComponent.IsValid()
+		                ? hit.GetComponent()->GetCollisionResponseToComponent(physicBody->OwnerComponent.Get())
 		                : ECR_Ignore;
 	ObjectType = hit.Component.IsValid()
 		             ? UEngineTypes::ConvertToObjectType(hit.GetComponent()->GetCollisionObjectType())
@@ -255,7 +255,7 @@ UBaseTransientMove::UBaseTransientMove()
 
 bool UBaseTransientMove::CheckTransientMovement_Implementation(const TArray<FExpandedHitResult>& Surfaces, FTransientMoveInfos& MoveInfos, const FMomentum& CurrentMomentum,
                                                                const FVector MoveInput, const FMoverInputPool Inputs, const TArray<FContingentMoveInfos>& ContingentMoves, const TArray<FTransientMoveInfos>& TransientMoves,
-                                                               TMap<FName, FVector>& CustomProperties, int& SurfacesFlag) const
+                                                               TMap<FName, FVector>& CustomProperties) const
 {
 	return false;
 }

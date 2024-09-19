@@ -17,7 +17,8 @@ void UModularMoverSubsystem::RegisterComponent(UModularMoverComponent* mover)
 	_registeredMovers.Add(mover);
 	FMomentum fakeMomentum;
 	fakeMomentum.Transform = mover->GetOwner()->GetActorTransform();
-	UpdateChunk(mover, FMoverCheckRequest(fakeMomentum, FMoverInputPool()));
+	FBodyInstance fakeBody = FBodyInstance();
+	UpdateChunk(mover, FMoverCheckRequest(&fakeBody, fakeMomentum, FMoverInputPool()));
 	mover->OnComponentMoved.AddUObject(this, &UModularMoverSubsystem::UpdateChunk);
 	for (int i = 0; i < mover->ContingentMoveClasses.Num(); i++)
 	{
