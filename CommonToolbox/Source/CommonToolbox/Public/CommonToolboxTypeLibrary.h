@@ -11,12 +11,12 @@ UENUM(BlueprintType)
 enum class ESurfaceTraceHitType : uint8
 {
 	NormalHit,
-	InnerHit,
 	//The surface impact is offset inward the shape used to trace. 
-	OuterHit,
+	InnerHit,
 	//The surface impact is offset outward the shape used to trace.
-	MAX,
+	OuterHit,
 	// Used to filter. to say take all of them.
+	MAX,
 };
 
 
