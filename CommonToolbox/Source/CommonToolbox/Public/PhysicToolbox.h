@@ -18,15 +18,15 @@ class COMMONTOOLBOX_API UPhysicToolbox : public UBlueprintFunctionLibrary
 public:
 	
 	// Compare 2 collision shapes and return true if they are of same type and size.
-	static bool CollisionShapeEquals(const FCollisionShape shapeA, const FCollisionShape shapeB);
+	static bool CollisionShapeEquals(const FCollisionShape& shapeA, const FCollisionShape& shapeB);
 	
 	// Get the point on a Shape in a direction. 
-	static FVector GetPointOnShapeInDirection(const FCollisionShape Shape, const FTransform Transform, FVector Direction);
+	static FVector GetPointOnShapeInDirection(const FCollisionShape& Shape, const FTransform& Transform, FVector Direction);
 
 
 	// Get the Kinetic Energy of a body of mass (Kg), traveling at velocity. Set distance travelled to get the force.
 	UFUNCTION(BlueprintCallable, Category = "Toolbox|Physic")
-	static FVector GetKineticEnergy(const FVector velocity, const float mass, const double distanceTraveled = 1);
+	static FVector GetKineticEnergy(const FVector& velocity, const float mass, const double distanceTraveled = 1);
 
 
 	/// Check for all collisions at a position and rotation in a direction as overlaps. return true if any collision occurs
@@ -46,9 +46,9 @@ public:
 	}
 
 	// Convert a hit array from hit results to expanded hit results, calculating offset by the way.
-	static void PostPhysicTrace_internal(const TArray<FHitResult> IncomingHits, UPARAM(ref) TArray<FExpandedHitResult>& outgoingHits, ECollisionChannel Channel,
-	                                          FCollisionQueryParams& queryParams = FCollisionQueryParams::DefaultQueryParam, ESurfaceTraceHitType offsetFilter = ESurfaceTraceHitType::MAX,
-	                                          float PenetrationStep = 0);
+	static void PostPhysicTrace_internal(const TArray<FHitResult>& IncomingHits, UPARAM(ref) TArray<FExpandedHitResult>& outgoingHits, ECollisionChannel Channel,
+	                                     FCollisionQueryParams& queryParams = FCollisionQueryParams::DefaultQueryParam, ESurfaceTraceHitType offsetFilter = ESurfaceTraceHitType::MAX,
+	                                     float PenetrationStep = 0);
 
 	static bool ComponentTraceMulti_internal(UWorld* world, FCollisionShape Shape, ECollisionChannel Channel, TArray<FExpandedHitResult>& outHits, FVector position, FVector direction,
 	                                         FQuat rotation,

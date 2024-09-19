@@ -5,7 +5,7 @@
 #include "VectorToolbox.h"
 
 
-bool UPhysicToolbox::CollisionShapeEquals(const FCollisionShape shapeA, const FCollisionShape shapeB)
+bool UPhysicToolbox::CollisionShapeEquals(const FCollisionShape& shapeA, const FCollisionShape& shapeB)
 {
 	if (shapeA.ShapeType != shapeB.ShapeType)
 		return false;
@@ -13,7 +13,7 @@ bool UPhysicToolbox::CollisionShapeEquals(const FCollisionShape shapeA, const FC
 }
 
 
-FVector UPhysicToolbox::GetPointOnShapeInDirection(const FCollisionShape Shape, const FTransform Transform, FVector Direction)
+FVector UPhysicToolbox::GetPointOnShapeInDirection(const FCollisionShape& Shape, const FTransform& Transform, FVector Direction)
 {
 	if (!Direction.Normalize())
 		return Transform.GetLocation();
@@ -60,7 +60,7 @@ FVector UPhysicToolbox::GetPointOnShapeInDirection(const FCollisionShape Shape, 
 }
 
 
-FVector UPhysicToolbox::GetKineticEnergy(const FVector velocity, const float mass, const double distanceTraveled)
+FVector UPhysicToolbox::GetKineticEnergy(const FVector& velocity, const float mass, const double distanceTraveled)
 {
 	const FVector momentum = velocity * mass;
 	const FVector kinematicEnergy = momentum.GetSafeNormal() * (momentum.SquaredLength() / (2 * mass));
@@ -69,7 +69,7 @@ FVector UPhysicToolbox::GetKineticEnergy(const FVector velocity, const float mas
 }
 
 
-void UPhysicToolbox::PostPhysicTrace_internal(const TArray<FHitResult> IncomingHits, TArray<FExpandedHitResult>& outgoingHits, ECollisionChannel Channel,
+void UPhysicToolbox::PostPhysicTrace_internal(const TArray<FHitResult>& IncomingHits, TArray<FExpandedHitResult>& outgoingHits, ECollisionChannel Channel,
                                               FCollisionQueryParams& queryParams, ESurfaceTraceHitType offsetFilter, float PenetrationStep)
 {
 	outgoingHits.Empty();
