@@ -6,6 +6,10 @@
 #include "TypesLibrary.h"
 #include "StdContinuousOnGroundMove.generated.h"
 
+
+#define FLOATING_HEIGHT 10
+
+
 /**
  * 
  */
@@ -14,6 +18,10 @@ class MODULARMOVER_API UStdContinuousOnGroundMove : public UBaseContingentMove
 {
 	GENERATED_BODY()
 public:
+	// Ground object type
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="On Ground | Detection")
+	TEnumAsByte<ECollisionChannel> GroundChannel = ECC_WorldStatic;
+	
 	// Maximum distance to detect surface below.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="On Ground | Detection")
 	float MaxGroundDistance = 25;
