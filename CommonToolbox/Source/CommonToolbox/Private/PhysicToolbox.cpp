@@ -108,11 +108,17 @@ void UPhysicToolbox::PostPhysicTrace_internal(const TArray<FHitResult>& Incoming
 			if (awayOffset.Length() > 0.125 && _offset == ESurfaceTraceHitType::NormalHit && (offsetFilter == ESurfaceTraceHitType::OuterHit || offsetFilter == ESurfaceTraceHitType::MAX))
 			{
 				FHitResult outwardHit;
-				FVector pt = IncomingHits[j].ImpactPoint + awayOffset.GetSafeNormal() * 0.125;
+				FVector pt = IncomingHits[j].ImpactPoint - awayOffset.GetSafeNormal() * 0.125;
+				FVector impactNormal = FVector(0);
+				if (IncomingHits[j].GetComponent()->LineTraceComponent(outwardHit, pt, pt + awayOffset * 2, Channel, queryParams, respParam, objParam))
+					impactNormal = outwardHit.Normal;
+				pt = IncomingHits[j].ImpactPoint + awayOffset.GetSafeNormal() * 0.125;
 				if (IncomingHits[j].GetComponent()->LineTraceComponent(outwardHit, pt, pt + direction, Channel, queryParams, respParam, objParam))
 				{
 					_offset = ESurfaceTraceHitType::OuterHit;
 					penetrationIniLocation = outwardHit.ImpactPoint;
+					if(impactNormal.Normalize())
+						outwardHit.Normal = impactNormal;
 					outgoingHits.Add(FExpandedHitResult(outwardHit, queryType, queryParams, _offset, outwardHit.Distance));
 				}
 			}
