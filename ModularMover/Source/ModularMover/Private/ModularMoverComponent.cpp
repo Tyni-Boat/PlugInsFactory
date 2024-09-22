@@ -155,6 +155,20 @@ void UModularMoverComponent::AsyncPhysicsTickComponent(float DeltaTime, float Si
 			_bMoveDisableCollision = move.IgnoreCollision;
 			_lastGravity = move.Gravity;
 
+			//Check hit on snap
+			if (move.Linear.SnapDisplacement.SquaredLength() > 0)
+			{
+				FHitResult snapHit;
+				FCollisionQueryParams queryParams;
+				queryParams.AddIgnoredActor(GetOwner());
+				queryParams.AddIgnoredComponents(IgnoredCollisionComponents);
+				if(GetWorld()->SweepSingleByChannel(snapHit, currentMomentum.Transform.GetLocation(), currentMomentum.Transform.GetLocation() + move.Linear.SnapDisplacement
+					,currentMomentum.Transform.GetRotation(), UpdatedPrimitive->GetCollisionObjectType(), UpdatedPrimitive->GetCollisionShape(-1), queryParams))
+				{
+					move.Linear.SnapDisplacement = snapHit.Location - currentMomentum.Transform.GetLocation();
+				}
+			}
+
 			//Move
 			MoveBody(BodyInstance, move, DeltaTime);
 		}
@@ -564,6 +578,7 @@ bool UModularMoverComponent::DetectOverlapHits(const FTransform Transform, TArra
 		UDebugToolbox::DrawDebugCircleOnHit(hit, 40, FColor::Cyan, 0, 0.5);
 	}
 	FCollisionQueryParams query = FCollisionQueryParams::DefaultQueryParam;
+	query.OwnerTag = "Mover";
 	query.AddIgnoredActor(UpdatedPrimitive->GetOwner());
 	query.AddIgnoredComponents(IgnoredCollisionComponents);
 	bool hitRes = UPhysicToolbox::ComponentTraceMulti_internal(world, shape, channel, touchedHits, location - offset, scanVector + offset, rotation, bUseComplexCollision,
@@ -596,6 +611,7 @@ FTraceHandle UModularMoverComponent::AsyncDetectOverlapHits(const FTransform Tra
 		UDebugToolbox::DrawDebugCircleOnHit(hit, 40, FColor::Cyan, 0, 0.5);
 	}
 	FCollisionQueryParams query = FCollisionQueryParams::DefaultQueryParam;
+	query.OwnerTag = "Mover";
 	query.AddIgnoredActor(UpdatedPrimitive->GetOwner());
 	query.AddIgnoredComponents(IgnoredCollisionComponents);
 	return UPhysicToolbox::AsyncComponentTraceMulti_internal(world, shape, location - offset, scanVector + offset, rotation, callBack, bUseComplexCollision, query);

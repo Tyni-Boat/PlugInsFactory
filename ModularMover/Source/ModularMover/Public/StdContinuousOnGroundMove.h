@@ -32,15 +32,33 @@ public:
 
 	// Maximum slope angle to start sliding (deg)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="On Ground | Detection")
-	float MaxWalkableSlopeAngle = 45;
+	float MaxSlopeAngle = 45;
 
-	// The map of Max speed when moving by trigger input
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="On Ground | Movement")
-	TMap<FName, float> MoveSpeeds;
+	// Minimum slope angle to start sliding (deg)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="On Ground | Detection")
+	float MinSlopeAngle = 35;
 
-	// The default Max speed when moving
+	
+	
+	// The map of Max speed (X), Acceleration (Y), deceleration (Z) and turn speed (W) when moving by trigger input
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="On Ground | Movement")
-	float FallBackMoveSpeed = 250;
+	TMap<FName, FVector4> MoveParams;
+
+	// The default Max speed (X), Acceleration (Y), deceleration (Z) and turn speed (W) when moving
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="On Ground | Movement")
+	FVector4 FallBackMoveParams = FVector4(500, 2000, 1200, 800);
+
+	// The Sliding Max speed (X), Acceleration (Y), deceleration (Z) and turn speed (W). turn speed will only be effective for above zero values
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="On Ground | Movement")
+	FVector4 SlidingMoveParams = FVector4(5500, 1000, 0, 0);
+
+	// The speed to control slide
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="On Ground | Movement")
+	float SlideControlSpeed = 100;
+
+	// Snap speed, the more it is, the snapper will be the movement when climbing a step
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="On Ground | Movement")
+	float SnapSpeed = 25;
 
 
 	virtual bool CheckContingentMovement_Implementation(const TArray<FExpandedHitResult>& Surfaces, FContingentMoveInfos& MoveInfos, const FMomentum& CurrentMomentum, const FVector MoveInput,
@@ -49,4 +67,7 @@ public:
 
 	virtual FMechanicProperties ProcessContingentMovement_Implementation(FContingentMoveInfos& MoveInfos, const FMomentum& CurrentMomentum, const FVector MoveInput,
 	                                                                     const FMoverInputPool Inputs, const float DeltaTime) const override;
+
+	// Get the actual move params depending on inputs.
+	FVector4 GetMoveParams(const FMoverInputPool& Inputs) const;
 };
