@@ -207,6 +207,120 @@ bool UStructExtension::ReadTriggerInput(const FMoverInputPool InputPool, const F
 	return true;
 }
 
+void UStructExtension::ApplyForceOnSurfaces(TArray<FSurface>& Surfaces, const FVector point, const FVector force, bool reactionForce, ECollisionResponse channelFilter)
+{
+	if (Surfaces.Num() <= 0)
+		return;
+	for (int i = 0; i < Surfaces.Num(); i++)
+	{
+		if (channelFilter != ECR_MAX && Surfaces[i].QueryResponse != channelFilter)
+			continue;
+		Surfaces[i].ApplyForceAtOnSurface(point, force, reactionForce);
+	}
+}
+
+FVector UStructExtension::GetSurfacesVelocityFromNormal(const TArray<FSurface>& Surfaces, const FVector velocity, const bool useImpactNormal, ECollisionResponse channelFilter)
+{
+	if (Surfaces.Num() <= 0)
+		return velocity;
+	FVector subSequentVelocity = velocity;
+	for (int i = 0; i < Surfaces.Num(); i++)
+	{
+		if (channelFilter != ECR_MAX && Surfaces[i].QueryResponse != channelFilter)
+			continue;
+		FVector surVel = Surfaces[i].GetVelocityAlongNormal(subSequentVelocity, useImpactNormal, true);
+		const FVector projected = surVel.ProjectOnToNormal(subSequentVelocity.GetSafeNormal());
+		const FVector planed = FVector::VectorPlaneProject(surVel, subSequentVelocity.GetSafeNormal());
+		if ((projected | subSequentVelocity) > 0)
+		{
+			if (projected.SquaredLength() > subSequentVelocity.SquaredLength())
+				subSequentVelocity = projected;
+		}
+		else
+		{
+			subSequentVelocity += projected;
+		}
+		subSequentVelocity += planed;
+	}
+
+	return subSequentVelocity;
+}
+
+FVector UStructExtension::GetAverageSurfaceVelocityAt(const TArray<FSurface>& Surfaces, const FVector point, const float deltaTime, ECollisionResponse channelFilter)
+{
+	if (Surfaces.Num() <= 0)
+		return FVector(0);
+	FVector cumulated = FVector(0);
+	for (int i = 0; i < Surfaces.Num(); i++)
+	{
+		const auto surface = Surfaces[i];
+		if (channelFilter != ECR_MAX && surface.QueryResponse != channelFilter)
+			continue;
+		const FVector surVel = surface.GetVelocityAt(point, deltaTime);
+		if (cumulated.IsNearlyZero())
+		{
+			cumulated = surVel;
+			continue;
+		}
+		const FVector projected = surVel.ProjectOnToNormal(cumulated.GetSafeNormal());
+		const FVector planed = FVector::VectorPlaneProject(surVel, cumulated.GetSafeNormal());
+		if ((projected | cumulated) > 0)
+		{
+			if (projected.SquaredLength() > cumulated.SquaredLength())
+				cumulated = projected;
+		}
+		else
+		{
+			cumulated += projected;
+		}
+		cumulated += planed;
+	}
+
+	return cumulated;
+}
+
+FVector UStructExtension::GetAverageSurfaceAngularSpeed(const TArray<FSurface>& Surfaces, ECollisionResponse channelFilter)
+{
+	if (Surfaces.Num() <= 0)
+		return FVector(0);
+	FVector cumulated = FVector(0);
+	for (int i = 0; i < Surfaces.Num(); i++)
+	{
+		const auto surface = Surfaces[i];
+		if (channelFilter != ECR_MAX && surface.QueryResponse != channelFilter)
+			continue;
+		const FVector surRotVel = surface.AngularVelocity;
+		FVector axis = surRotVel;
+		if (!axis.Normalize())
+			continue;
+		const double angle = surRotVel.Length();
+		cumulated += (axis * angle);
+	}
+
+	return cumulated;
+}
+
+FVector UStructExtension::GetMaxSurfacePhysicProperties(const TArray<FSurface>& Surfaces, ECollisionResponse channelFilter)
+{
+	if (Surfaces.Num() <= 0)
+		return FVector(0);
+	float maxFriction = 0;
+	float maxBounce = 0;
+
+	for (int i = 0; i < Surfaces.Num(); i++)
+	{
+		const auto surface = Surfaces[i];
+		if (channelFilter != ECR_MAX && surface.QueryResponse != channelFilter)
+			continue;
+		if (surface.SurfacePhysicProperties.X > maxFriction)
+			maxFriction = surface.SurfacePhysicProperties.X;
+		if (surface.SurfacePhysicProperties.Y > maxBounce)
+			maxBounce = surface.SurfacePhysicProperties.Y;
+	}
+
+	return FVector(maxFriction, maxBounce, 0);
+}
+
 #pragma endregion
 
 #pragma region Classes

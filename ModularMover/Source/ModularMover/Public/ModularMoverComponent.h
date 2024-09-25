@@ -119,7 +119,6 @@ protected:
 
 #pragma endregion
 
-
 #pragma region Physic
 
 public:
@@ -168,6 +167,7 @@ public:
 
 
 protected:
+	FMomentum _currentMomentum;
 	UPROPERTY()
 	UPhysicalMaterial* _customPhysicMaterial = nullptr;
 	FVector _lastLocation;
@@ -224,11 +224,11 @@ protected:
 	                    std::function<void(UPrimitiveComponent*, FVector)> OnPhysicCompHit = {}) const;
 
 	// Calculate Linear velocity. UseReduction subtract the current Linear Velocity from the end result.
-	static FVector ComputeLinearVelocity(FLinearMechanic AttemptedMovement, FVector currentLinearVelocity, const float deltaTime, bool UseReduction = false);
+	static FVector ComputeLinearVelocity(const FLinearMechanic AttemptedMovement, const FVector currentLinearVelocity, const FVector SurfacesLinearVelocity, const float deltaTime, bool UseReduction = false);
 
 	// Calculate Angular velocity (Rad/s). UseReduction subtract the current Angular Velocity from the end result.
-	static FVector ComputeAngularVelocity(FAngularMechanic AttemptedMovement, FVector CurrentAngularVelocity, const FQuat CurrentOrientation, FVector Gravity, const float deltaTime,
-	                                      bool UseReduction = false, const FRotator OffsetRotation = FRotator(0));
+	static FVector ComputeAngularVelocity(FAngularMechanic AttemptedMovement, FVector CurrentAngularVelocity, const FQuat CurrentOrientation, const FQuat SurfaceAngularVelocity, FVector Gravity,
+	                                      const float deltaTime, bool UseReduction = false, const FRotator OffsetRotation = FRotator(0));
 
 #pragma endregion
 
@@ -320,7 +320,7 @@ public:
 #pragma region Movement
 
 	// Move a body according to Movement
-	void MoveBody(FBodyInstance* Body, const FMechanicProperties movement, const float Delta) const;
+	void MoveBody(FBodyInstance* Body, const FTransform SurfaceMovement, const FMechanicProperties movement, const float Delta) const;
 
 	// Get the orientation, keeping body upright.
 	static bool GetAngularOrientation(FQuat& Orientation, const FQuat BodyOrientation, const FAngularMechanic angularMechanic, const FVector Gravity,

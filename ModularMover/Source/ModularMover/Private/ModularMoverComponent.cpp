@@ -126,30 +126,30 @@ void UModularMoverComponent::AsyncPhysicsTickComponent(float DeltaTime, float Si
 			}
 
 			//Building Momentum
-			FMomentum currentMomentum;
-			currentMomentum.Transform = UPhysicToolbox::GetRigidBodyTransform(BodyInstance);
-			currentMomentum.LinearVelocity = UPhysicToolbox::GetRigidBodyLinearVelocity(BodyInstance);
-			currentMomentum.AngularVelocity = UPhysicToolbox::GetRigidBodyAngularVelocity(BodyInstance);
-			currentMomentum.Mass = GetMass();
-			currentMomentum.Gravity = _lastGravity;
-			currentMomentum.SetShape(UpdatedPrimitive->GetCollisionShape());
-			currentMomentum.Surfaces = ActiveContingentMove.Surfaces;
+			_currentMomentum = FMomentum();
+			_currentMomentum.Transform = UPhysicToolbox::GetRigidBodyTransform(BodyInstance);
+			_currentMomentum.LinearVelocity = UPhysicToolbox::GetRigidBodyLinearVelocity(BodyInstance);
+			_currentMomentum.AngularVelocity = UPhysicToolbox::GetRigidBodyAngularVelocity(BodyInstance);
+			_currentMomentum.Mass = GetMass();
+			_currentMomentum.Gravity = _lastGravity;
+			_currentMomentum.SetShape(UpdatedPrimitive->GetCollisionShape());
+			_currentMomentum.Surfaces = ActiveContingentMove.Surfaces;
 
 			// Check modifications
-			EvaluateMovementDiff(BodyInstance, currentMomentum, _inputPool);
+			EvaluateMovementDiff(BodyInstance, _currentMomentum, _inputPool);
 			if (DebugMode == EDebugMode::SurfaceDetection)
 			{
-				for (const auto surface : currentMomentum.Surfaces)
+				for (const auto surface : _currentMomentum.Surfaces)
 				{
 					UDebugToolbox::DrawDebugCircleOnHit(surface.HitResult, 20, FColor::Green);
 					UKismetSystemLibrary::DrawDebugArrow(this, surface.HitResult.ImpactPoint,
-					                                     surface.HitResult.ImpactPoint + surface.GetVelocityAt(currentMomentum.Transform.GetLocation(), DeltaTime), 20, FColor::Green);
+					                                     surface.HitResult.ImpactPoint + surface.GetVelocityAt(_currentMomentum.Transform.GetLocation(), DeltaTime), 20, FColor::Green);
 				}
 			}
 
 			// Process and blend
-			FMechanicProperties move = ProcessContingentMoves(currentMomentum, DeltaTime);
-			move = ProcessTransientMoves(move, currentMomentum, DeltaTime);
+			FMechanicProperties move = ProcessContingentMoves(_currentMomentum, DeltaTime);
+			move = ProcessTransientMoves(move, _currentMomentum, DeltaTime);
 
 			//Affect variables
 			_bMoveDisableCollision = move.IgnoreCollision;
@@ -162,15 +162,22 @@ void UModularMoverComponent::AsyncPhysicsTickComponent(float DeltaTime, float Si
 				FCollisionQueryParams queryParams;
 				queryParams.AddIgnoredActor(GetOwner());
 				queryParams.AddIgnoredComponents(IgnoredCollisionComponents);
-				if(GetWorld()->SweepSingleByChannel(snapHit, currentMomentum.Transform.GetLocation(), currentMomentum.Transform.GetLocation() + move.Linear.SnapDisplacement
-					,currentMomentum.Transform.GetRotation(), UpdatedPrimitive->GetCollisionObjectType(), UpdatedPrimitive->GetCollisionShape(-1), queryParams))
+				if (GetWorld()->SweepSingleByChannel(snapHit, _currentMomentum.Transform.GetLocation(), _currentMomentum.Transform.GetLocation() + move.Linear.SnapDisplacement
+				                                     , _currentMomentum.Transform.GetRotation(), UpdatedPrimitive->GetCollisionObjectType(), UpdatedPrimitive->GetCollisionShape(-1),
+				                                     queryParams))
 				{
-					move.Linear.SnapDisplacement = snapHit.Location - currentMomentum.Transform.GetLocation();
+					move.Linear.SnapDisplacement = snapHit.Location - _currentMomentum.Transform.GetLocation();
 				}
 			}
 
+			//Evaluate surface movement transform
+			const FVector surfaceLinear = UStructExtension::GetAverageSurfaceVelocityAt(_currentMomentum.Surfaces, _currentMomentum.Transform.GetLocation(), DeltaTime, ECR_MAX);
+			const FVector surfaceAngular = UStructExtension::GetAverageSurfaceAngularSpeed(_currentMomentum.Surfaces, ECR_MAX);
+			const FQuat surfaceAngularQuat = FQuat(surfaceAngular.GetSafeNormal(), FMath::DegreesToRadians(surfaceAngular.Length()) * DeltaTime);
+			const FTransform surfaceVelocities = FTransform(surfaceAngularQuat, surfaceLinear, FVector::OneVector);
+
 			//Move
-			MoveBody(BodyInstance, move, DeltaTime);
+			MoveBody(BodyInstance, surfaceVelocities, move, DeltaTime);
 		}
 	}
 	// ...
@@ -219,17 +226,11 @@ void UModularMoverComponent::AddVectorInput(const FName InputName, const FVector
 		input.Type = EInputType::Vector;
 		input.LifeTime = LifeTime;
 		_inputPool.InputMap.Add(InputName, input);
-	}
 
-	if (UpdatedPrimitive)
-	{
-		FMomentum instantMomentum = FMomentum();
-		instantMomentum.Transform = UpdatedPrimitive->GetComponentTransform();
-		instantMomentum.LinearVelocity = UpdatedPrimitive->GetPhysicsLinearVelocity();
-		instantMomentum.AngularVelocity = UpdatedPrimitive->GetPhysicsAngularVelocityInRadians();
-		instantMomentum.Gravity = _lastGravity;
-		instantMomentum.Mass = GetMass();
-		OnMoveCheck(this, FMoverCheckRequest(UpdatedPrimitive->GetBodyInstance(), instantMomentum, _inputPool));
+		if (UpdatedPrimitive)
+		{
+			OnMoveCheck(this, FMoverCheckRequest(UpdatedPrimitive->GetBodyInstance(), _currentMomentum, _inputPool));
+		}
 	}
 }
 
@@ -247,17 +248,11 @@ void UModularMoverComponent::AddRotationInput(const FName InputName, const FRota
 		input.Type = EInputType::Rotation;
 		input.LifeTime = LifeTime;
 		_inputPool.InputMap.Add(InputName, input);
-	}
 
-	if (UpdatedPrimitive)
-	{
-		FMomentum instantMomentum = FMomentum();
-		instantMomentum.Transform = UpdatedPrimitive->GetComponentTransform();
-		instantMomentum.LinearVelocity = UpdatedPrimitive->GetPhysicsLinearVelocity();
-		instantMomentum.AngularVelocity = UpdatedPrimitive->GetPhysicsAngularVelocityInRadians();
-		instantMomentum.Gravity = _lastGravity;
-		instantMomentum.Mass = GetMass();
-		OnMoveCheck(this, FMoverCheckRequest(UpdatedPrimitive->GetBodyInstance(), instantMomentum, _inputPool));
+		if (UpdatedPrimitive)
+		{
+			OnMoveCheck(this, FMoverCheckRequest(UpdatedPrimitive->GetBodyInstance(), _currentMomentum, _inputPool));
+		}
 	}
 }
 
@@ -275,17 +270,11 @@ void UModularMoverComponent::AddValueInput(const FName InputName, const float Va
 		input.Type = EInputType::Value;
 		input.LifeTime = LifeTime;
 		_inputPool.InputMap.Add(InputName, input);
-	}
 
-	if (UpdatedPrimitive)
-	{
-		FMomentum instantMomentum = FMomentum();
-		instantMomentum.Transform = UpdatedPrimitive->GetComponentTransform();
-		instantMomentum.LinearVelocity = UpdatedPrimitive->GetPhysicsLinearVelocity();
-		instantMomentum.AngularVelocity = UpdatedPrimitive->GetPhysicsAngularVelocityInRadians();
-		instantMomentum.Gravity = _lastGravity;
-		instantMomentum.Mass = GetMass();
-		OnMoveCheck(this, FMoverCheckRequest(UpdatedPrimitive->GetBodyInstance(), instantMomentum, _inputPool));
+		if (UpdatedPrimitive)
+		{
+			OnMoveCheck(this, FMoverCheckRequest(UpdatedPrimitive->GetBodyInstance(), _currentMomentum, _inputPool));
+		}
 	}
 }
 
@@ -303,17 +292,11 @@ void UModularMoverComponent::AddTriggerInput(const FName InputName, const float 
 		input.Type = EInputType::Trigger;
 		input.LifeTime = LifeTime;
 		_inputPool.InputMap.Add(InputName, input);
-	}
 
-	if (UpdatedPrimitive)
-	{
-		FMomentum instantMomentum = FMomentum();
-		instantMomentum.Transform = UpdatedPrimitive->GetComponentTransform();
-		instantMomentum.LinearVelocity = UpdatedPrimitive->GetPhysicsLinearVelocity();
-		instantMomentum.AngularVelocity = UpdatedPrimitive->GetPhysicsAngularVelocityInRadians();
-		instantMomentum.Gravity = _lastGravity;
-		instantMomentum.Mass = GetMass();
-		OnMoveCheck(this, FMoverCheckRequest(UpdatedPrimitive->GetBodyInstance(), instantMomentum, _inputPool));
+		if (UpdatedPrimitive)
+		{
+			OnMoveCheck(this, FMoverCheckRequest(UpdatedPrimitive->GetBodyInstance(), _currentMomentum, _inputPool));
+		}
 	}
 }
 
@@ -1152,10 +1135,13 @@ FMechanicProperties UModularMoverComponent::ProcessTransientMoves(const FMechani
 #pragma region Movement
 
 
-FVector UModularMoverComponent::ComputeLinearVelocity(const FLinearMechanic AttemptedMovement, const FVector currentLinearVelocity, const float deltaTime, bool UseReduction)
+FVector UModularMoverComponent::ComputeLinearVelocity(const FLinearMechanic AttemptedMovement, const FVector currentLinearVelocity, const FVector SurfacesLinearVelocity,
+                                                      const float deltaTime, bool UseReduction)
 {
+	const FVector relativeCurrentVelocity = currentLinearVelocity - SurfacesLinearVelocity;
 	const float speed = AttemptedMovement.Acceleration.SquaredLength() > 0 ? AttemptedMovement.Acceleration.Length() : AttemptedMovement.DecelerationSpeed;
-	FVector velocity = FMath::VInterpConstantTo(currentLinearVelocity, AttemptedMovement.Acceleration.GetSafeNormal() * AttemptedMovement.TerminalVelocity, deltaTime, speed);
+	const FVector relativeVelocity = FMath::VInterpConstantTo(relativeCurrentVelocity,AttemptedMovement.Acceleration.GetSafeNormal() * AttemptedMovement.TerminalVelocity, deltaTime, speed);
+	FVector velocity = SurfacesLinearVelocity + relativeVelocity;	
 
 	if (UseReduction)
 		velocity -= currentLinearVelocity;
@@ -1163,7 +1149,8 @@ FVector UModularMoverComponent::ComputeLinearVelocity(const FLinearMechanic Atte
 	return velocity;
 }
 
-FVector UModularMoverComponent::ComputeAngularVelocity(FAngularMechanic AttemptedMovement, FVector CurrentAngularVelocity, const FQuat CurrentOrientation, FVector Gravity,
+FVector UModularMoverComponent::ComputeAngularVelocity(FAngularMechanic AttemptedMovement, FVector CurrentAngularVelocity, const FQuat CurrentOrientation, const FQuat SurfaceAngularVelocity,
+                                                       FVector Gravity,
                                                        const float deltaTime, bool UseReduction, const FRotator OffsetRotation)
 {
 	if (!Gravity.Normalize())
@@ -1183,6 +1170,7 @@ FVector UModularMoverComponent::ComputeAngularVelocity(FAngularMechanic Attempte
 		}
 	}
 
+	angularPart.OrientationDiff *= SurfaceAngularVelocity;
 	FVector result = GetAngularVelocity(CurrentOrientation, angularPart, Gravity, OffsetRotation) / deltaTime;
 
 	if (UseReduction)
@@ -1192,7 +1180,7 @@ FVector UModularMoverComponent::ComputeAngularVelocity(FAngularMechanic Attempte
 }
 
 
-void UModularMoverComponent::MoveBody(FBodyInstance* Body, const FMechanicProperties movement, const float Delta) const
+void UModularMoverComponent::MoveBody(FBodyInstance* Body, const FTransform SurfaceMovement, const FMechanicProperties movement, const float Delta) const
 {
 	if (!Body)
 		return;
@@ -1206,7 +1194,7 @@ void UModularMoverComponent::MoveBody(FBodyInstance* Body, const FMechanicProper
 
 	//Linear Part
 	{
-		linearMovement = ComputeLinearVelocity(movement.Linear, currentLinearVelocity, Delta, true);
+		linearMovement = ComputeLinearVelocity(movement.Linear, currentLinearVelocity, SurfaceMovement.GetLocation(), Delta, true);
 
 		if (DebugMode == EDebugMode::LinearMovement)
 		{
@@ -1221,7 +1209,8 @@ void UModularMoverComponent::MoveBody(FBodyInstance* Body, const FMechanicProper
 
 	//Angular Part
 	{
-		angularMovement = ComputeAngularVelocity(movement.Angular, currentAngularVelocity, initialTransform.GetRotation(), movement.Gravity, Delta, true, RotationOffset);
+		angularMovement = ComputeAngularVelocity(movement.Angular, currentAngularVelocity, initialTransform.GetRotation(), SurfaceMovement.GetRotation(), movement.Gravity, Delta, true,
+		                                         RotationOffset);
 
 		if (DebugMode == EDebugMode::AngularMovement)
 		{
@@ -1290,6 +1279,10 @@ TArray<FMomentum> UModularMoverComponent::GetTrajectory(const int SampleCount, c
                                                         const FRotator OffsetRotation)
 {
 	TArray<FMomentum> result;
+	const FVector surfaceLinear = UStructExtension::GetAverageSurfaceVelocityAt(currentMomentum.Surfaces, currentMomentum.Transform.GetLocation(), timeStep, ECR_MAX);
+	const FVector surfaceAngular = UStructExtension::GetAverageSurfaceAngularSpeed(currentMomentum.Surfaces, ECR_MAX);
+	const FQuat surfaceAngularQuat = FQuat(surfaceAngular.GetSafeNormal(), FMath::DegreesToRadians(surfaceAngular.Length()) * timeStep);
+
 	result.Add(currentMomentum);
 	for (int i = 0; i < SampleCount; i++)
 	{
@@ -1299,14 +1292,14 @@ TArray<FMomentum> UModularMoverComponent::GetTrajectory(const int SampleCount, c
 
 		//Linear part
 		{
-			iteration.LinearVelocity = ComputeLinearVelocity(inputMovement.Linear, lastItem.LinearVelocity, timeStep);
+			iteration.LinearVelocity = ComputeLinearVelocity(inputMovement.Linear, lastItem.LinearVelocity, surfaceLinear, timeStep);
 			iteration.Transform.SetLocation(lastItem.Transform.GetLocation() + iteration.LinearVelocity * timeStep);
 		}
 
 		//Angular part
 		{
-			iteration.AngularVelocity = ComputeAngularVelocity(inputMovement.Angular, lastItem.AngularVelocity, lastItem.Transform.GetRotation(), inputMovement.Gravity, timeStep, false,
-			                                                   OffsetRotation);
+			iteration.AngularVelocity = ComputeAngularVelocity(inputMovement.Angular, lastItem.AngularVelocity, lastItem.Transform.GetRotation(), surfaceAngularQuat, inputMovement.Gravity,
+			                                                   timeStep, false, OffsetRotation);
 			const FQuat axisAngleRot = FQuat(iteration.AngularVelocity.GetSafeNormal(), iteration.AngularVelocity.Length() * timeStep);
 			FQuat newRot = lastItem.Transform.GetRotation() * axisAngleRot;
 			const float newDot = (newRot.Vector() | inputMovement.Angular.LookOrientation.GetSafeNormal());

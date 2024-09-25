@@ -30,6 +30,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="On Ground | Detection")
 	float MaxStepHeight = 35;
 
+	// Maximum surface angle. Pass this value a surface won't even be considered walkable nor slidable
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="On Ground | Detection")
+	float MaxSurfaceAngle = 70;
+
 	// Maximum slope angle to start sliding (deg)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="On Ground | Detection")
 	float MaxSlopeAngle = 45;
@@ -40,7 +44,7 @@ public:
 
 	
 	
-	// The map of Max speed (X), Acceleration (Y), deceleration (Z) and turn speed (W) when moving by trigger input
+	// The map of Max speed (X), Acceleration (Y), deceleration (Z) and turn speed (W) when moving by value input
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="On Ground | Movement")
 	TMap<FName, FVector4> MoveParams;
 

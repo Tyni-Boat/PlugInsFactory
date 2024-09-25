@@ -324,7 +324,7 @@ public:
 	// The current acceleration to apply (cm/s-2)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
 	FVector Acceleration = FVector(0);
-	
+
 	// The Snap vector. instantaneously displace the body teleporting physic. can cause clipping, use with care 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
 	FVector SnapDisplacement = FVector(0);
@@ -535,15 +535,14 @@ public:
 		for (auto input : inputs.InputMap)
 			InputPool.InputMap.Add(input);
 	}
-	
+
 	FBodyInstance* MoverBody;
-	
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
 	FMomentum Momentum;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
 	FMoverInputPool InputPool;
-	
 };
 
 
@@ -565,6 +564,27 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "StructExtension|Inputs", meta=(BlueprintThreadSafe))
 	static bool ReadTriggerInput(const FMoverInputPool InputPool, const FName InputName, bool& OutTrigger);
+
+
+	//Apply force on surfaces at a point.
+	UFUNCTION(BlueprintCallable, Category = "StructExtension|Inputs")
+	static void ApplyForceOnSurfaces(TArray<FSurface>& Surfaces, const FVector point, const FVector force, bool reactionForce, ECollisionResponse channelFilter);
+
+	//Get surface velocity along hit normal
+	UFUNCTION(BlueprintPure, Category = "StructExtension|Inputs", meta=(BlueprintThreadSafe))
+	static FVector GetSurfacesVelocityFromNormal(const TArray<FSurface>& Surfaces, const FVector velocity, const bool useImpactNormal, ECollisionResponse channelFilter);
+
+	//Get surface combined surface average linear velocity
+	UFUNCTION(BlueprintPure, Category = "StructExtension|Inputs", meta=(BlueprintThreadSafe))
+	static FVector GetAverageSurfaceVelocityAt(const TArray<FSurface>& Surfaces, const FVector point, const float deltaTime, ECollisionResponse channelFilter);
+
+	//Get surface combined surface average angular velocity. (Deg/s)
+	UFUNCTION(BlueprintPure, Category = "StructExtension|Inputs", meta=(BlueprintThreadSafe))
+	static FVector GetAverageSurfaceAngularSpeed(const TArray<FSurface>& Surfaces, ECollisionResponse channelFilter);
+
+	//Get surface highest physic properties (X) friction, (Y) bounciness.
+	UFUNCTION(BlueprintPure, Category = "StructExtension|Inputs", meta=(BlueprintThreadSafe))
+	static FVector GetMaxSurfacePhysicProperties(const TArray<FSurface>& Surfaces, ECollisionResponse channelFilter);
 };
 
 #pragma endregion
@@ -669,7 +689,8 @@ public:
 	                                             const float DeltaTime) const;
 
 	UFUNCTION(BlueprintCallable, Category="Modular Mover | Mover Movement Mode", meta = (BlueprintThreadSafe))
-	virtual FMechanicProperties ProcessTransientMovement_Implementation(const FMechanicProperties ContingentMove, UPARAM(ref) FTransientMoveInfos& MoveInfos, const FMomentum& CurrentMomentum,
+	virtual FMechanicProperties ProcessTransientMovement_Implementation(const FMechanicProperties ContingentMove, UPARAM(ref) FTransientMoveInfos& MoveInfos,
+	                                                                    const FMomentum& CurrentMomentum,
 	                                                                    const FVector MoveInput,
 	                                                                    const FMoverInputPool Inputs, const float DeltaTime) const;
 };
