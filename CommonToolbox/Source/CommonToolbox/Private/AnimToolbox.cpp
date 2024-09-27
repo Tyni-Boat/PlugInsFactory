@@ -108,3 +108,15 @@ double UAnimToolbox::GetMontageCurrentWeight(const UAnimInstance* AnimInstance, 
 	return MontageInstance->GetWeight();
 }
 
+FTransform UAnimToolbox::ExtractRootMotion(USkeletalMeshComponent* SkeletalMesh, float delta)
+{
+	//Extract Root Motion
+	if (SkeletalMesh)
+	{
+		const FTransform localRootMotion = SkeletalMesh->ConsumeRootMotion().GetRootMotionTransform();
+		const FTransform worldRootMotion = SkeletalMesh->ConvertLocalRootMotionToWorld(localRootMotion);
+		return FTransform(worldRootMotion.GetRotation(), worldRootMotion.GetTranslation() / delta, FVector::OneVector);
+	}
+	return FTransform(FQuat::Identity, FVector(0), FVector::OneVector);
+}
+
