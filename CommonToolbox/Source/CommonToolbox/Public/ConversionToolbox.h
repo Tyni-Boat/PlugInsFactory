@@ -46,4 +46,8 @@ public:
 	// Convert an index to integer flag.
 	UFUNCTION(BlueprintPure, Category = "Toolbox|Conversions", meta=(BlueprintThreadSafe))
 	static int IndexToFlag(const int index);
+
+	// return the owning actor a component.
+	UFUNCTION(BlueprintPure, Category = "Toolbox|Conversions")
+	static AActor* GetComponentActor(const UActorComponent* Component);
 };

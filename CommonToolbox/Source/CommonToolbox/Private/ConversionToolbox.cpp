@@ -4,10 +4,9 @@
 #include "MathToolbox.h"
 
 
-
 double UConversionToolbox::DeltaTimeToFPS(double deltaTime)
 {
-	if(FMath::IsNearlyZero(deltaTime))
+	if (FMath::IsNearlyZero(deltaTime))
 		return 0;
 	return 1 / deltaTime;
 }
@@ -98,4 +97,9 @@ int UConversionToolbox::IndexToFlag(const int index)
 	if (index < 0)
 		return 0;
 	return UMathToolbox::TwoPowX(index);
+}
+
+AActor* UConversionToolbox::GetComponentActor(const UActorComponent* Component)
+{
+	return Component ? Component->GetOwner() : nullptr;
 }
