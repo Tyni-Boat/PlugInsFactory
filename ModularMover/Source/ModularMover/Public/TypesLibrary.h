@@ -634,13 +634,15 @@ public:
 
 
 	UFUNCTION(BlueprintNativeEvent, Category="Modular Mover | Mover Movement Mode", meta = (BlueprintThreadSafe, AdvancedDisplay = 5))
-	bool CheckContingentMovement(UPARAM(ref) const TArray<FExpandedHitResult>& Surfaces, UPARAM(ref) FContingentMoveInfos& MoveInfos, const FMomentum& CurrentMomentum,
+	bool CheckContingentMovement(UActorComponent* MoverActorComponent, UPARAM(ref) const TArray<FExpandedHitResult>& Surfaces, UPARAM(ref) FContingentMoveInfos& MoveInfos,
+	                             const FMomentum& CurrentMomentum,
 	                             const FVector MoveInput,
 	                             const FMoverInputPool Inputs, UPARAM(ref) const TArray<FContingentMoveInfos>& ContingentMoves,
 	                             UPARAM(ref) const TArray<FTransientMoveInfos>& TransientMoves, UPARAM(ref) TMap<FName, FVector>& CustomProperties, UPARAM(ref) int& SurfacesFlag) const;
 
 	UFUNCTION(BlueprintCallable, Category="Modular Mover | Mover Movement Mode", meta = (BlueprintThreadSafe, AdvancedDisplay = 5))
-	virtual bool CheckContingentMovement_Implementation(UPARAM(ref) const TArray<FExpandedHitResult>& Surfaces, UPARAM(ref) FContingentMoveInfos& MoveInfos, const FMomentum& CurrentMomentum,
+	virtual bool CheckContingentMovement_Implementation(UActorComponent* MoverActorComponent,UPARAM(ref) const TArray<FExpandedHitResult>& Surfaces,
+	                                                    UPARAM(ref) FContingentMoveInfos& MoveInfos, const FMomentum& CurrentMomentum,
 	                                                    const FVector MoveInput,
 	                                                    const FMoverInputPool Inputs,UPARAM(ref) const TArray<FContingentMoveInfos>& ContingentMoves,
 	                                                    UPARAM(ref) const TArray<FTransientMoveInfos>& TransientMoves, UPARAM(ref) TMap<FName, FVector>& CustomProperties,
@@ -648,11 +650,13 @@ public:
 
 
 	UFUNCTION(BlueprintNativeEvent, Category="Modular Mover | Mover Movement Mode", meta = (BlueprintThreadSafe))
-	FMechanicProperties ProcessContingentMovement(UPARAM(ref) FContingentMoveInfos& MoveInfos, const FMomentum& CurrentMomentum, const FVector MoveInput, const FMoverInputPool Inputs,
+	FMechanicProperties ProcessContingentMovement(UActorComponent* MoverActorComponent,UPARAM(ref) FContingentMoveInfos& MoveInfos, const FMomentum& CurrentMomentum,
+	                                              const FVector MoveInput, const FMoverInputPool Inputs,
 	                                              const float DeltaTime) const;
 
 	UFUNCTION(BlueprintCallable, Category="Modular Mover | Mover Movement Mode", meta = (BlueprintThreadSafe))
-	virtual FMechanicProperties ProcessContingentMovement_Implementation(UPARAM(ref) FContingentMoveInfos& MoveInfos, const FMomentum& CurrentMomentum, const FVector MoveInput,
+	virtual FMechanicProperties ProcessContingentMovement_Implementation(UActorComponent* MoverActorComponent,UPARAM(ref) FContingentMoveInfos& MoveInfos,
+	                                                                     const FMomentum& CurrentMomentum, const FVector MoveInput,
 	                                                                     const FMoverInputPool Inputs, const float DeltaTime) const;
 };
 
@@ -671,25 +675,29 @@ public:
 
 
 	UFUNCTION(BlueprintNativeEvent, Category="Modular Mover | Mover Movement Mode", meta = (BlueprintThreadSafe, AdvancedDisplay = 5))
-	bool CheckTransientMovement(UPARAM(ref) const TArray<FExpandedHitResult>& Surfaces, UPARAM(ref) FTransientMoveInfos& MoveInfos, const FMomentum& CurrentMomentum, const FVector MoveInput,
+	bool CheckTransientMovement(UActorComponent* MoverActorComponent,UPARAM(ref) const TArray<FExpandedHitResult>& Surfaces, UPARAM(ref) FTransientMoveInfos& MoveInfos,
+	                            const FMomentum& CurrentMomentum, const FVector MoveInput,
 	                            const FMoverInputPool Inputs, UPARAM(ref) const TArray<FContingentMoveInfos>& ContingentMoves,
 	                            UPARAM(ref) const TArray<FTransientMoveInfos>& TransientMoves, UPARAM(ref) TMap<FName, FVector>& CustomProperties) const;
 
 	UFUNCTION(BlueprintCallable, Category="Modular Mover | Mover Movement Mode", meta = (BlueprintThreadSafe, AdvancedDisplay = 5))
-	virtual bool CheckTransientMovement_Implementation(UPARAM(ref) const TArray<FExpandedHitResult>& Surfaces, UPARAM(ref) FTransientMoveInfos& MoveInfos, const FMomentum& CurrentMomentum,
+	virtual bool CheckTransientMovement_Implementation(UActorComponent* MoverActorComponent,UPARAM(ref) const TArray<FExpandedHitResult>& Surfaces,
+	                                                   UPARAM(ref) FTransientMoveInfos& MoveInfos, const FMomentum& CurrentMomentum,
 	                                                   const FVector MoveInput,
 	                                                   const FMoverInputPool Inputs, UPARAM(ref) const TArray<FContingentMoveInfos>& ContingentMoves,
 	                                                   UPARAM(ref) const TArray<FTransientMoveInfos>& TransientMoves, UPARAM(ref) TMap<FName, FVector>& CustomProperties) const;
 
 
 	UFUNCTION(BlueprintNativeEvent, Category="Modular Mover | Mover Movement Mode", meta = (BlueprintThreadSafe))
-	FMechanicProperties ProcessTransientMovement(const FMechanicProperties ContingentMove, UPARAM(ref) FTransientMoveInfos& MoveInfos, const FMomentum& CurrentMomentum,
+	FMechanicProperties ProcessTransientMovement(UActorComponent* MoverActorComponent, const FMechanicProperties ContingentMove, UPARAM(ref) FTransientMoveInfos& MoveInfos,
+	                                             const FMomentum& CurrentMomentum,
 	                                             const FVector MoveInput,
 	                                             const FMoverInputPool Inputs,
 	                                             const float DeltaTime) const;
 
 	UFUNCTION(BlueprintCallable, Category="Modular Mover | Mover Movement Mode", meta = (BlueprintThreadSafe))
-	virtual FMechanicProperties ProcessTransientMovement_Implementation(const FMechanicProperties ContingentMove, UPARAM(ref) FTransientMoveInfos& MoveInfos,
+	virtual FMechanicProperties ProcessTransientMovement_Implementation(UActorComponent* MoverActorComponent, const FMechanicProperties ContingentMove,
+	                                                                    UPARAM(ref) FTransientMoveInfos& MoveInfos,
 	                                                                    const FMomentum& CurrentMomentum,
 	                                                                    const FVector MoveInput,
 	                                                                    const FMoverInputPool Inputs, const float DeltaTime) const;

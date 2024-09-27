@@ -734,7 +734,7 @@ void UModularMoverComponent::CheckContingentMoves(const FMoverCheckRequest Reque
 		if (const auto MovementMode = _subSystem->GetContingentMoveObject(ContingentMoveState[i].BaseInfos.ModeName))
 		{
 			int surfacesIndexesFlag = 0;
-			if (MovementMode->CheckContingentMovement(SurfacesHits, ContingentMoveState[i], Request.Momentum, _movementInput, Request.InputPool, ContingentMoveState, TransientMoveState,
+			if (MovementMode->CheckContingentMovement(this, SurfacesHits, ContingentMoveState[i], Request.Momentum, _movementInput, Request.InputPool, ContingentMoveState, TransientMoveState,
 			                                          CustomProperties, surfacesIndexesFlag))
 			{
 				//enqueue
@@ -855,7 +855,7 @@ FMechanicProperties UModularMoverComponent::ProcessContingentMoves(const FMoment
 			{
 				// Process
 				const auto name = ContingentMoveState[activeIndex].BaseInfos.ModeName;
-				move = MovementMode->ProcessContingentMovement(ContingentMoveState[activeIndex], currentMomentum, _movementInput, _inputPool, DeltaTime);
+				move = MovementMode->ProcessContingentMovement(this, ContingentMoveState[activeIndex], currentMomentum, _movementInput, _inputPool, DeltaTime);
 				ContingentMoveState[activeIndex].BaseInfos.ModeName = name;
 				// Blend values
 				const FVector snap = move.Linear.SnapDisplacement;
@@ -882,7 +882,7 @@ FMechanicProperties UModularMoverComponent::ProcessContingentMoves(const FMoment
 				{
 					// Process
 					const auto name = ContingentMoveState[i].BaseInfos.ModeName;
-					auto auxMove = MovementMode->ProcessContingentMovement(ContingentMoveState[i], currentMomentum, _movementInput, _inputPool, DeltaTime);
+					auto auxMove = MovementMode->ProcessContingentMovement(this, ContingentMoveState[i], currentMomentum, _movementInput, _inputPool, DeltaTime);
 					ContingentMoveState[i].BaseInfos.ModeName = name;
 					// Blend values
 					const float blendValue = FMath::Min(blendLeft, ContingentMoveState[i].BaseInfos.CurrentWeight);
@@ -966,7 +966,7 @@ void UModularMoverComponent::CheckTransientMoves(const FMoverCheckRequest Reques
 		//check
 		if (const auto MovementMode = _subSystem->GetTransientMoveObject(TransientMoveState[i].BaseInfos.ModeName))
 		{
-			if (MovementMode->CheckTransientMovement(Surfaces, TransientMoveState[i], Request.Momentum, _movementInput, Request.InputPool, ContingentMoveState, TransientMoveState,
+			if (MovementMode->CheckTransientMovement(this, Surfaces, TransientMoveState[i], Request.Momentum, _movementInput, Request.InputPool, ContingentMoveState, TransientMoveState,
 			                                         CustomProperties))
 			{
 				//enqueue
@@ -1044,7 +1044,7 @@ FMechanicProperties UModularMoverComponent::ProcessTransientMoves(const FMechani
 			{
 				// Process
 				const auto name = TransientMoveState[activeIndex].BaseInfos.ModeName;
-				move = MovementMode->ProcessTransientMovement(ContingentMoveResult, TransientMoveState[activeIndex], currentMomentum, _movementInput, _inputPool, DeltaTime);
+				move = MovementMode->ProcessTransientMovement(this, ContingentMoveResult, TransientMoveState[activeIndex], currentMomentum, _movementInput, _inputPool, DeltaTime);
 				TransientMoveState[activeIndex].BaseInfos.ModeName = name;
 				// Blend values
 				const FVector snap = move.Linear.SnapDisplacement;
@@ -1089,7 +1089,7 @@ FMechanicProperties UModularMoverComponent::ProcessTransientMoves(const FMechani
 			{
 				// Process
 				const auto name = TransientMoveState[i].BaseInfos.ModeName;
-				auto auxMove = MovementMode->ProcessTransientMovement(ContingentMoveResult, TransientMoveState[i], currentMomentum, _movementInput, _inputPool, DeltaTime);
+				auto auxMove = MovementMode->ProcessTransientMovement(this, ContingentMoveResult, TransientMoveState[i], currentMomentum, _movementInput, _inputPool, DeltaTime);
 				TransientMoveState[i].BaseInfos.ModeName = name;
 				// Blend values
 				const float blendValue = FMath::Min(blendLeft, TransientMoveState[i].BaseInfos.CurrentWeight);

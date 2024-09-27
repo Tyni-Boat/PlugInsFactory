@@ -12,7 +12,17 @@
 #include "VectorToolbox.h"
 
 
-bool UStdContinuousOnGroundMove::CheckContingentMovement_Implementation(const TArray<FExpandedHitResult>& Surfaces, FContingentMoveInfos& MoveInfos, const FMomentum& CurrentMomentum,
+UStdContinuousOnGroundMove::UStdContinuousOnGroundMove()
+{	
+	this->ModeName = "OnGround";
+	this->Priority = 2;
+	this->BlendSpeed = FVector2D(10, 10);
+	this->ScanSurfaceVector = FVector(0, 0, -500);
+	this->ScanSurfaceOffset = 150;
+}
+
+bool UStdContinuousOnGroundMove::CheckContingentMovement_Implementation(UActorComponent* MoverActorComponent, const TArray<FExpandedHitResult>& Surfaces,
+                                                                        FContingentMoveInfos& MoveInfos, const FMomentum& CurrentMomentum,
                                                                         const FVector MoveInput, const FMoverInputPool Inputs, const TArray<FContingentMoveInfos>& ContingentMoves,
                                                                         const TArray<FTransientMoveInfos>& TransientMoves,
                                                                         TMap<FName, FVector>& CustomProperties, int& SurfacesFlag) const
@@ -34,6 +44,8 @@ bool UStdContinuousOnGroundMove::CheckContingentMovement_Implementation(const TA
 		if (!Surfaces[i].HitResult.Component.IsValid())
 			continue;
 		if (Surfaces[i].CollisionResponse != ECR_Block)
+			continue;
+		if (Surfaces[i].HitResult.Component->GetCollisionObjectType() != GroundChannel)
 			continue;
 		const FVector fromCenterVector = Surfaces[i].HitResult.ImpactPoint - CurrentMomentum.Transform.GetLocation();
 		const FVector fromLowPtVector = Surfaces[i].HitResult.ImpactPoint - lowestPoint;
@@ -76,13 +88,14 @@ bool UStdContinuousOnGroundMove::CheckContingentMovement_Implementation(const TA
 	return Surfaces.IsValidIndex(bestIndex);
 }
 
-FMechanicProperties UStdContinuousOnGroundMove::ProcessContingentMovement_Implementation(FContingentMoveInfos& MoveInfos, const FMomentum& CurrentMomentum, const FVector MoveInput,
+FMechanicProperties UStdContinuousOnGroundMove::ProcessContingentMovement_Implementation(UActorComponent* MoverActorComponent, FContingentMoveInfos& MoveInfos,
+                                                                                         const FMomentum& CurrentMomentum, const FVector MoveInput,
                                                                                          const FMoverInputPool Inputs, const float DeltaTime) const
 {
 	const bool validSurface = CurrentMomentum.Surfaces.IsValidIndex(0);
 	const FVector upVector = -CurrentMomentum.Gravity.GetSafeNormal();
 	if (!validSurface || upVector.SquaredLength() <= 0)
-		return Super::ProcessContingentMovement_Implementation(MoveInfos, CurrentMomentum, MoveInput, Inputs, DeltaTime);
+		return Super::ProcessContingentMovement_Implementation(MoverActorComponent, MoveInfos, CurrentMomentum, MoveInput, Inputs, DeltaTime);
 
 	FMechanicProperties result;
 	const auto shape = CurrentMomentum.GetShape();
@@ -129,7 +142,7 @@ FMechanicProperties UStdContinuousOnGroundMove::ProcessContingentMovement_Implem
 	const FVector snapVector = UVectorToolbox::GetSnapOnSurfaceVector(lowestPoint - upVector, CurrentMomentum.Surfaces[0].HitResult, upVector);
 	if (snapVector.SquaredLength() > 0)
 	{
-		if ((snapVector | upVector) >= 0)
+		if ((snapVector | upVector) >= 0 || (bDownSnapping && (snapVector | upVector) < 0))
 		{
 			result.Linear.SnapDisplacement = snapVector * FMath::Clamp(DeltaTime * SnapSpeed, 0, 1);
 		}
