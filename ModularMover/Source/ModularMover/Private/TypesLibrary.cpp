@@ -353,11 +353,12 @@ bool UBaseContingentMove::CheckContingentMovement_Implementation(UActorComponent
 
 FMechanicProperties UBaseContingentMove::ProcessContingentMovement_Implementation(UActorComponent* MoverActorComponent, FContingentMoveInfos& MoveInfos,
                                                                                   const FMomentum& CurrentMomentum, const FVector MoveInput,
-                                                                                  const FMoverInputPool Inputs, const float DeltaTime) const
+                                                                                  const FMoverInputPool Inputs, const FTransform SurfacesMovement, const float DeltaTime) const
 {
 	auto result = FMechanicProperties();
 	result.Gravity = CurrentMomentum.Gravity;
 	result.Linear.DecelerationSpeed = 0;
+	result.SurfacesMovement = SurfacesMovement;
 	return result;
 }
 
@@ -382,7 +383,7 @@ bool UBaseTransientMove::CheckTransientMovement_Implementation(UActorComponent* 
 FMechanicProperties UBaseTransientMove::ProcessTransientMovement_Implementation(UActorComponent* MoverActorComponent, const FMechanicProperties ContingentMove,
                                                                                 FTransientMoveInfos& MoveInfos,
                                                                                 const FMomentum& CurrentMomentum, const FVector MoveInput,
-                                                                                const FMoverInputPool Inputs, const float DeltaTime) const
+                                                                                const FMoverInputPool Inputs,const FTransform SurfacesMovement, const float DeltaTime) const
 {
 	return ContingentMove;
 }

@@ -366,6 +366,9 @@ public:
 	FAngularMechanic Angular = FAngularMechanic();
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
+	FTransform SurfacesMovement = FTransform();
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
 	FVector Gravity = FVector(0, 0, -1);
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
@@ -651,13 +654,13 @@ public:
 
 	UFUNCTION(BlueprintNativeEvent, Category="Modular Mover | Mover Movement Mode", meta = (BlueprintThreadSafe))
 	FMechanicProperties ProcessContingentMovement(UActorComponent* MoverActorComponent,UPARAM(ref) FContingentMoveInfos& MoveInfos, const FMomentum& CurrentMomentum,
-	                                              const FVector MoveInput, const FMoverInputPool Inputs,
+	                                              const FVector MoveInput, const FMoverInputPool Inputs, const FTransform SurfacesMovement,
 	                                              const float DeltaTime) const;
 
 	UFUNCTION(BlueprintCallable, Category="Modular Mover | Mover Movement Mode", meta = (BlueprintThreadSafe))
 	virtual FMechanicProperties ProcessContingentMovement_Implementation(UActorComponent* MoverActorComponent,UPARAM(ref) FContingentMoveInfos& MoveInfos,
 	                                                                     const FMomentum& CurrentMomentum, const FVector MoveInput,
-	                                                                     const FMoverInputPool Inputs, const float DeltaTime) const;
+	                                                                     const FMoverInputPool Inputs, const FTransform SurfacesMovement, const float DeltaTime) const;
 };
 
 
@@ -692,7 +695,7 @@ public:
 	FMechanicProperties ProcessTransientMovement(UActorComponent* MoverActorComponent, const FMechanicProperties ContingentMove, UPARAM(ref) FTransientMoveInfos& MoveInfos,
 	                                             const FMomentum& CurrentMomentum,
 	                                             const FVector MoveInput,
-	                                             const FMoverInputPool Inputs,
+	                                             const FMoverInputPool Inputs, const FTransform SurfacesMovement,
 	                                             const float DeltaTime) const;
 
 	UFUNCTION(BlueprintCallable, Category="Modular Mover | Mover Movement Mode", meta = (BlueprintThreadSafe))
@@ -700,7 +703,7 @@ public:
 	                                                                    UPARAM(ref) FTransientMoveInfos& MoveInfos,
 	                                                                    const FMomentum& CurrentMomentum,
 	                                                                    const FVector MoveInput,
-	                                                                    const FMoverInputPool Inputs, const float DeltaTime) const;
+	                                                                    const FMoverInputPool Inputs, const FTransform SurfacesMovement, const float DeltaTime) const;
 };
 
 #pragma endregion

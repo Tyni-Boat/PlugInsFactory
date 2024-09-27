@@ -15,9 +15,8 @@
 
 UStdContinuousInWaterMove::UStdContinuousInWaterMove()
 {
-	
 	this->ModeName = "InWater";
-	this->Priority = 3;
+	this->Priority = 4;
 	this->BlendSpeed = FVector2D(10, 10);
 	this->ScanSurfaceVector = FVector(0, 0, 5000);
 	this->ScanSurfaceOffset = 0;
@@ -96,12 +95,12 @@ bool UStdContinuousInWaterMove::CheckContingentMovement_Implementation(UActorCom
 
 FMechanicProperties UStdContinuousInWaterMove::ProcessContingentMovement_Implementation(UActorComponent* MoverActorComponent, FContingentMoveInfos& MoveInfos,
                                                                                         const FMomentum& CurrentMomentum, const FVector MoveInput,
-                                                                                        const FMoverInputPool Inputs, const float DeltaTime) const
+                                                                                        const FMoverInputPool Inputs, const FTransform SurfacesMovement, const float DeltaTime) const
 {
 	const bool validSurface = CurrentMomentum.Surfaces.IsValidIndex(0);
 	const FVector upVector = -CurrentMomentum.Gravity.GetSafeNormal();
 	if (!validSurface || upVector.SquaredLength() <= 0)
-		return Super::ProcessContingentMovement_Implementation(MoverActorComponent, MoveInfos, CurrentMomentum, MoveInput, Inputs, DeltaTime);
+		return Super::ProcessContingentMovement_Implementation(MoverActorComponent, MoveInfos, CurrentMomentum, MoveInput, Inputs, SurfacesMovement, DeltaTime);
 
 	FMechanicProperties result;
 	const auto shape = CurrentMomentum.GetShape();
@@ -126,23 +125,25 @@ FMechanicProperties UStdContinuousInWaterMove::ProcessContingentMovement_Impleme
 	result.Linear.TerminalVelocity = moveParams.X;
 	result.Linear.Acceleration = (horizontalMoveInp + (immersion >= FloatingHeight && (verticalMoveInp | upVector) > 0 ? FVector(0) : verticalMoveInp)) * moveParams.Y * viscosity;
 	result.Linear.DecelerationSpeed = moveParams.Z * viscosity;
+	result.SurfacesMovement = SurfacesMovement;
 
 	//Rotation
 	result.Angular.LookOrientation = UVectorToolbox::Project3DVector(MoveInput, upVector).GetSafeNormal() * moveParams.W;
 
 	//Buoyancy
 	FVector buoyancyVector = UVectorToolbox::GetSnapOnSurfaceVector(lowestPoint + upVector * FloatingHeight, waterHitClone, upVector);
-	if (buoyancyVector.Length() > 5)
-	{
-		buoyancyVector *= ArchimedForceScale;
-		if ((verticalVelocity | -upVector) < 0)
-		{
-			const FVector kinetic = -UPhysicToolbox::GetKineticEnergy(verticalVelocity, CurrentMomentum.Mass, FMath::Abs(immersion - FloatingHeight));
-			const float controllerLenght = (lowestPoint - highestPoint).Length();
-			buoyancyVector += (kinetic / CurrentMomentum.Mass) * FMath::Clamp((immersion - OutWaterImmersion) / (controllerLenght - FloatingHeight), 0, 1);
-		}
-		result.Linear.Acceleration += buoyancyVector;
-	}
+	// if (buoyancyVector.Length() > 5)
+	// {
+	// 	buoyancyVector *= ArchimedForceScale;
+	// 	if ((verticalVelocity | -upVector) < 0)
+	// 	{
+	// 		const FVector kinetic = -UPhysicToolbox::GetKineticEnergy(verticalVelocity, CurrentMomentum.Mass, FMath::Abs(immersion - FloatingHeight));
+	// 		const float controllerLenght = (lowestPoint - highestPoint).Length();
+	// 		buoyancyVector += (kinetic / CurrentMomentum.Mass) * FMath::Clamp((immersion - OutWaterImmersion) / (controllerLenght - FloatingHeight), 0, 1);
+	// 	}
+	// 	result.Linear.Acceleration += buoyancyVector;
+	// }
+	result.SurfacesMovement.SetTranslation(buoyancyVector * ArchimedForceScale + SurfacesMovement.GetTranslation());
 
 	return result;
 }

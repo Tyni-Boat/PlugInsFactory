@@ -26,7 +26,7 @@ bool UStdContinuousFreeFall::CheckContingentMovement_Implementation(UActorCompon
 
 FMechanicProperties UStdContinuousFreeFall::ProcessContingentMovement_Implementation(UActorComponent* MoverActorComponent, FContingentMoveInfos& MoveInfos, const FMomentum& CurrentMomentum,
                                                                                      const FVector MoveInput,
-                                                                                     const FMoverInputPool Inputs, const float DeltaTime) const
+                                                                                     const FMoverInputPool Inputs, const FTransform SurfacesMovement, const float DeltaTime) const
 {
 	FMechanicProperties result;
 	result.Gravity = GravityVector;

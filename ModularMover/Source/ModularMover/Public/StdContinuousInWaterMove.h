@@ -15,9 +15,8 @@ class MODULARMOVER_API UStdContinuousInWaterMove : public UBaseContingentMove
 	GENERATED_BODY()
 
 public:
-
 	UStdContinuousInWaterMove();
-	
+
 	// Water object type
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="In Water | Detection")
 	TEnumAsByte<ECollisionChannel> WaterChannel = ECC_WorldDynamic;
@@ -55,7 +54,7 @@ public:
 
 	virtual FMechanicProperties ProcessContingentMovement_Implementation(UActorComponent* MoverActorComponent, FContingentMoveInfos& MoveInfos, const FMomentum& CurrentMomentum,
 	                                                                     const FVector MoveInput,
-	                                                                     const FMoverInputPool Inputs, const float DeltaTime) const override;
+	                                                                     const FMoverInputPool Inputs, const FTransform SurfacesMovement, const float DeltaTime) const override;
 
 	// Get the actual move params depending on inputs.
 	FVector4 GetMoveParams(const FMoverInputPool& Inputs) const;

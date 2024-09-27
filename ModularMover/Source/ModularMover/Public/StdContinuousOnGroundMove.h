@@ -18,9 +18,8 @@ class MODULARMOVER_API UStdContinuousOnGroundMove : public UBaseContingentMove
 {
 	GENERATED_BODY()
 public:
-
 	UStdContinuousOnGroundMove();
-	
+
 	// Ground object type
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="On Ground | Detection")
 	TEnumAsByte<ECollisionChannel> GroundChannel = ECC_WorldStatic;
@@ -78,7 +77,7 @@ public:
 
 	virtual FMechanicProperties ProcessContingentMovement_Implementation(UActorComponent* MoverActorComponent, FContingentMoveInfos& MoveInfos, const FMomentum& CurrentMomentum,
 	                                                                     const FVector MoveInput,
-	                                                                     const FMoverInputPool Inputs, const float DeltaTime) const override;
+	                                                                     const FMoverInputPool Inputs, const FTransform SurfacesMovement, const float DeltaTime) const override;
 
 	// Get the actual move params depending on inputs.
 	FVector4 GetMoveParams(const FMoverInputPool& Inputs) const;

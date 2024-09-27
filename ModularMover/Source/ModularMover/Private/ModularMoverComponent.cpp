@@ -147,9 +147,15 @@ void UModularMoverComponent::AsyncPhysicsTickComponent(float DeltaTime, float Si
 				}
 			}
 
+			//Evaluate surface movement transform
+			const FVector surfaceLinear = UStructExtension::GetAverageSurfaceVelocityAt(_currentMomentum.Surfaces, _currentMomentum.Transform.GetLocation(), DeltaTime, ECR_MAX);
+			const FVector surfaceAngular = UStructExtension::GetAverageSurfaceAngularSpeed(_currentMomentum.Surfaces, ECR_MAX);
+			const FQuat surfaceAngularQuat = FQuat(surfaceAngular.GetSafeNormal(), FMath::DegreesToRadians(surfaceAngular.Length()) * DeltaTime);
+			const FTransform surfaceVelocities = FTransform(surfaceAngularQuat, surfaceLinear, FVector::OneVector);
+
 			// Process and blend
-			FMechanicProperties move = ProcessContingentMoves(_currentMomentum, DeltaTime);
-			move = ProcessTransientMoves(move, _currentMomentum, DeltaTime);
+			FMechanicProperties move = ProcessContingentMoves(_currentMomentum, surfaceVelocities, DeltaTime);
+			move = ProcessTransientMoves(move, _currentMomentum, surfaceVelocities, DeltaTime);
 
 			//Affect variables
 			_bMoveDisableCollision = move.IgnoreCollision;
@@ -170,14 +176,8 @@ void UModularMoverComponent::AsyncPhysicsTickComponent(float DeltaTime, float Si
 				}
 			}
 
-			//Evaluate surface movement transform
-			const FVector surfaceLinear = UStructExtension::GetAverageSurfaceVelocityAt(_currentMomentum.Surfaces, _currentMomentum.Transform.GetLocation(), DeltaTime, ECR_MAX);
-			const FVector surfaceAngular = UStructExtension::GetAverageSurfaceAngularSpeed(_currentMomentum.Surfaces, ECR_MAX);
-			const FQuat surfaceAngularQuat = FQuat(surfaceAngular.GetSafeNormal(), FMath::DegreesToRadians(surfaceAngular.Length()) * DeltaTime);
-			const FTransform surfaceVelocities = FTransform(surfaceAngularQuat, surfaceLinear, FVector::OneVector);
-
 			//Move
-			MoveBody(BodyInstance, surfaceVelocities, move, DeltaTime);
+			MoveBody(BodyInstance, move, DeltaTime);
 		}
 	}
 	// ...
@@ -734,7 +734,8 @@ void UModularMoverComponent::CheckContingentMoves(const FMoverCheckRequest Reque
 		if (const auto MovementMode = _subSystem->GetContingentMoveObject(ContingentMoveState[i].BaseInfos.ModeName))
 		{
 			int surfacesIndexesFlag = 0;
-			if (MovementMode->CheckContingentMovement(this, SurfacesHits, ContingentMoveState[i], Request.Momentum, _movementInput, Request.InputPool, ContingentMoveState, TransientMoveState,
+			if (MovementMode->CheckContingentMovement(this, SurfacesHits, ContingentMoveState[i], Request.Momentum, _movementInput, Request.InputPool, ContingentMoveState,
+			                                          TransientMoveState,
 			                                          CustomProperties, surfacesIndexesFlag))
 			{
 				//enqueue
@@ -810,10 +811,11 @@ void UModularMoverComponent::CheckContingentMoves(const FMoverCheckRequest Reque
 	}
 }
 
-FMechanicProperties UModularMoverComponent::ProcessContingentMoves(const FMomentum currentMomentum, const float DeltaTime)
+FMechanicProperties UModularMoverComponent::ProcessContingentMoves(const FMomentum currentMomentum, const FTransform SurfacesMovement, const float DeltaTime)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("ProcessContingentMoves");
 	FMechanicProperties move = FMechanicProperties();
+	move.SurfacesMovement = SurfacesMovement;
 	FString inactiveDebug;
 	float activeWeight = 0;
 	int activeIndex = -1;
@@ -855,12 +857,8 @@ FMechanicProperties UModularMoverComponent::ProcessContingentMoves(const FMoment
 			{
 				// Process
 				const auto name = ContingentMoveState[activeIndex].BaseInfos.ModeName;
-				move = MovementMode->ProcessContingentMovement(this, ContingentMoveState[activeIndex], currentMomentum, _movementInput, _inputPool, DeltaTime);
+				move = MovementMode->ProcessContingentMovement(this, ContingentMoveState[activeIndex], currentMomentum, _movementInput, _inputPool, SurfacesMovement, DeltaTime);
 				ContingentMoveState[activeIndex].BaseInfos.ModeName = name;
-				// Blend values
-				const FVector snap = move.Linear.SnapDisplacement;
-				move.Scale(activeWeight);
-				move.Linear.SnapDisplacement = snap;
 			}
 		}
 
@@ -877,28 +875,10 @@ FMechanicProperties UModularMoverComponent::ProcessContingentMoves(const FMoment
 					continue;
 				if (ContingentMoveState[i].BaseInfos.CurrentWeight <= 0)
 					continue;
-
-				if (const auto MovementMode = _subSystem->GetContingentMoveObject(ContingentMoveState[i].BaseInfos.ModeName))
-				{
-					// Process
-					const auto name = ContingentMoveState[i].BaseInfos.ModeName;
-					auto auxMove = MovementMode->ProcessContingentMovement(this, ContingentMoveState[i], currentMomentum, _movementInput, _inputPool, DeltaTime);
-					ContingentMoveState[i].BaseInfos.ModeName = name;
-					// Blend values
-					const float blendValue = FMath::Min(blendLeft, ContingentMoveState[i].BaseInfos.CurrentWeight);
-					auxMove.Scale(blendValue);
-					bool ignoreCol = move.IgnoreCollision;
-					const FVector snap = move.Linear.SnapDisplacement;
-					move = move + auxMove;
-					move.IgnoreCollision = ignoreCol;
-					move.Linear.SnapDisplacement = snap;
-					blendLeft -= blendValue;
-
-					//Debug
-					inactiveDebug.Append(FString::Printf(
-						TEXT("[Inactive] - [Index (%d); Weight (%f); Name (%s)]\n"), i, ContingentMoveState[i].BaseInfos.CurrentWeight,
-						*ContingentMoveState[i].BaseInfos.ModeName.ToString()));
-				}
+				//Debug
+				inactiveDebug.Append(FString::Printf(
+					TEXT("[Inactive] - [Index (%d); Weight (%f); Name (%s)]\n"), i, ContingentMoveState[i].BaseInfos.CurrentWeight,
+					*ContingentMoveState[i].BaseInfos.ModeName.ToString()));
 			}
 		}
 	}
@@ -1002,7 +982,8 @@ void UModularMoverComponent::CheckTransientMoves(const FMoverCheckRequest Reques
 	}
 }
 
-FMechanicProperties UModularMoverComponent::ProcessTransientMoves(const FMechanicProperties ContingentMoveResult, const FMomentum currentMomentum, const float DeltaTime)
+FMechanicProperties UModularMoverComponent::ProcessTransientMoves(const FMechanicProperties ContingentMoveResult, const FMomentum currentMomentum, const FTransform SurfacesMovement,
+                                                                  const float DeltaTime)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("ProcessTransientMoves");
 	FMechanicProperties move = ContingentMoveResult;
@@ -1044,12 +1025,8 @@ FMechanicProperties UModularMoverComponent::ProcessTransientMoves(const FMechani
 			{
 				// Process
 				const auto name = TransientMoveState[activeIndex].BaseInfos.ModeName;
-				move = MovementMode->ProcessTransientMovement(this, ContingentMoveResult, TransientMoveState[activeIndex], currentMomentum, _movementInput, _inputPool, DeltaTime);
-				TransientMoveState[activeIndex].BaseInfos.ModeName = name;
-				// Blend values
-				const FVector snap = move.Linear.SnapDisplacement;
-				move.Scale(activeWeight);
-				move.Linear.SnapDisplacement = snap;
+				move = MovementMode->ProcessTransientMovement(this, ContingentMoveResult, TransientMoveState[activeIndex], currentMomentum, _movementInput, _inputPool, SurfacesMovement,
+				                                              DeltaTime);
 			}
 		}
 
@@ -1083,31 +1060,11 @@ FMechanicProperties UModularMoverComponent::ProcessTransientMoves(const FMechani
 		if (TransientMoveState[i].BaseInfos.CurrentWeight <= 0)
 			continue;
 
-		if (_subSystem)
-		{
-			if (const auto MovementMode = _subSystem->GetTransientMoveObject(TransientMoveState[i].BaseInfos.ModeName))
-			{
-				// Process
-				const auto name = TransientMoveState[i].BaseInfos.ModeName;
-				auto auxMove = MovementMode->ProcessTransientMovement(this, ContingentMoveResult, TransientMoveState[i], currentMomentum, _movementInput, _inputPool, DeltaTime);
-				TransientMoveState[i].BaseInfos.ModeName = name;
-				// Blend values
-				const float blendValue = FMath::Min(blendLeft, TransientMoveState[i].BaseInfos.CurrentWeight);
-				auxMove.Scale(blendValue);
-				bool ignoreCol = move.IgnoreCollision;
-				const FVector snap = move.Linear.SnapDisplacement;
-				move = move + auxMove;
-				move.IgnoreCollision = ignoreCol;
-				move.Linear.SnapDisplacement = snap;
-				blendLeft -= blendValue;
-
-				//Debug
-				inactiveDebug.Append(FString::Printf(
-					TEXT("[Inactive] - [Index (%d); Weight (%f); Name (%s), Phase (%s), Lenght (%f)]\n"), i, TransientMoveState[i].BaseInfos.CurrentWeight,
-					*TransientMoveState[i].BaseInfos.ModeName.ToString(),
-					*TransientMoveState[i].CurrentPhase.PhaseName.ToString(), TransientMoveState[i].TotalDuration()));
-			}
-		}
+		//Debug
+		inactiveDebug.Append(FString::Printf(
+			TEXT("[Inactive] - [Index (%d); Weight (%f); Name (%s), Phase (%s), Lenght (%f)]\n"), i, TransientMoveState[i].BaseInfos.CurrentWeight,
+			*TransientMoveState[i].BaseInfos.ModeName.ToString(),
+			*TransientMoveState[i].CurrentPhase.PhaseName.ToString(), TransientMoveState[i].TotalDuration()));
 	}
 
 	if (DebugMode == EDebugMode::MovementProcessing)
@@ -1140,8 +1097,8 @@ FVector UModularMoverComponent::ComputeLinearVelocity(const FLinearMechanic Atte
 {
 	const FVector relativeCurrentVelocity = currentLinearVelocity - SurfacesLinearVelocity;
 	const float speed = AttemptedMovement.Acceleration.SquaredLength() > 0 ? AttemptedMovement.Acceleration.Length() : AttemptedMovement.DecelerationSpeed;
-	const FVector relativeVelocity = FMath::VInterpConstantTo(relativeCurrentVelocity,AttemptedMovement.Acceleration.GetSafeNormal() * AttemptedMovement.TerminalVelocity, deltaTime, speed);
-	FVector velocity = SurfacesLinearVelocity + relativeVelocity;	
+	const FVector relativeVelocity = FMath::VInterpConstantTo(relativeCurrentVelocity, AttemptedMovement.Acceleration.GetSafeNormal() * AttemptedMovement.TerminalVelocity, deltaTime, speed);
+	FVector velocity = SurfacesLinearVelocity + relativeVelocity;
 
 	if (UseReduction)
 		velocity -= currentLinearVelocity;
@@ -1180,7 +1137,7 @@ FVector UModularMoverComponent::ComputeAngularVelocity(FAngularMechanic Attempte
 }
 
 
-void UModularMoverComponent::MoveBody(FBodyInstance* Body, const FTransform SurfaceMovement, const FMechanicProperties movement, const float Delta) const
+void UModularMoverComponent::MoveBody(FBodyInstance* Body, const FMechanicProperties movement, const float Delta) const
 {
 	if (!Body)
 		return;
@@ -1194,7 +1151,7 @@ void UModularMoverComponent::MoveBody(FBodyInstance* Body, const FTransform Surf
 
 	//Linear Part
 	{
-		linearMovement = ComputeLinearVelocity(movement.Linear, currentLinearVelocity, SurfaceMovement.GetLocation(), Delta, true);
+		linearMovement = ComputeLinearVelocity(movement.Linear, currentLinearVelocity, movement.SurfacesMovement.GetLocation(), Delta, true);
 
 		if (DebugMode == EDebugMode::LinearMovement)
 		{
@@ -1209,7 +1166,7 @@ void UModularMoverComponent::MoveBody(FBodyInstance* Body, const FTransform Surf
 
 	//Angular Part
 	{
-		angularMovement = ComputeAngularVelocity(movement.Angular, currentAngularVelocity, initialTransform.GetRotation(), SurfaceMovement.GetRotation(), movement.Gravity, Delta, true,
+		angularMovement = ComputeAngularVelocity(movement.Angular, currentAngularVelocity, initialTransform.GetRotation(), movement.SurfacesMovement.GetRotation(), movement.Gravity, Delta, true,
 		                                         RotationOffset);
 
 		if (DebugMode == EDebugMode::AngularMovement)

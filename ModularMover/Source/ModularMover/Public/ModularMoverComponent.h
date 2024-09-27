@@ -278,7 +278,7 @@ public:
 
 
 	// Process and blend actives contingent movements in an async manner (transitions from mode to mode are done at different speeds)
-	FMechanicProperties ProcessContingentMoves(const FMomentum currentMomentum, const float DeltaTime);
+	FMechanicProperties ProcessContingentMoves(const FMomentum currentMomentum, const FTransform SurfacesMovement, const float DeltaTime);
 
 	// Transients ------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -305,7 +305,7 @@ public:
 	void CheckTransientMoves(const FMoverCheckRequest Request, const TArray<FExpandedHitResult> Surfaces);
 
 	// Process and blend actives Transient movements in a sync manner (transitions from mode to mode are done at the same speed)
-	FMechanicProperties ProcessTransientMoves(const FMechanicProperties ContingentMoveResult, const FMomentum currentMomentum, const float DeltaTime);
+	FMechanicProperties ProcessTransientMoves(const FMechanicProperties ContingentMoveResult, const FMomentum currentMomentum, const FTransform SurfacesMovement, const float DeltaTime);
 
 	// Traversal ------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -320,7 +320,7 @@ public:
 #pragma region Movement
 
 	// Move a body according to Movement
-	void MoveBody(FBodyInstance* Body, const FTransform SurfaceMovement, const FMechanicProperties movement, const float Delta) const;
+	void MoveBody(FBodyInstance* Body, const FMechanicProperties movement, const float Delta) const;
 
 	// Get the orientation, keeping body upright.
 	static bool GetAngularOrientation(FQuat& Orientation, const FQuat BodyOrientation, const FAngularMechanic angularMechanic, const FVector Gravity,

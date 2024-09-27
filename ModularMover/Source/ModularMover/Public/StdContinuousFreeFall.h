@@ -15,9 +15,8 @@ class MODULARMOVER_API UStdContinuousFreeFall : public UBaseContingentMove
 	GENERATED_BODY()
 
 public:
-
 	UStdContinuousFreeFall();
-	
+
 	// The Gravity Vector
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Free Fall")
 	FVector GravityVector = FVector(0, 0, -981);
@@ -42,5 +41,5 @@ public:
 
 	virtual FMechanicProperties ProcessContingentMovement_Implementation(UActorComponent* MoverActorComponent, FContingentMoveInfos& MoveInfos, const FMomentum& CurrentMomentum,
 	                                                                     const FVector MoveInput,
-	                                                                     const FMoverInputPool Inputs, const float DeltaTime) const override;
+	                                                                     const FMoverInputPool Inputs, const FTransform SurfacesMovement, const float DeltaTime) const override;
 };

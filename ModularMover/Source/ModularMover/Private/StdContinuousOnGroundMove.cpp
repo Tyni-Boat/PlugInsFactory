@@ -13,9 +13,9 @@
 
 
 UStdContinuousOnGroundMove::UStdContinuousOnGroundMove()
-{	
+{
 	this->ModeName = "OnGround";
-	this->Priority = 2;
+	this->Priority = 3;
 	this->BlendSpeed = FVector2D(10, 10);
 	this->ScanSurfaceVector = FVector(0, 0, -500);
 	this->ScanSurfaceOffset = 150;
@@ -90,12 +90,12 @@ bool UStdContinuousOnGroundMove::CheckContingentMovement_Implementation(UActorCo
 
 FMechanicProperties UStdContinuousOnGroundMove::ProcessContingentMovement_Implementation(UActorComponent* MoverActorComponent, FContingentMoveInfos& MoveInfos,
                                                                                          const FMomentum& CurrentMomentum, const FVector MoveInput,
-                                                                                         const FMoverInputPool Inputs, const float DeltaTime) const
+                                                                                         const FMoverInputPool Inputs, const FTransform SurfacesMovement, const float DeltaTime) const
 {
 	const bool validSurface = CurrentMomentum.Surfaces.IsValidIndex(0);
 	const FVector upVector = -CurrentMomentum.Gravity.GetSafeNormal();
 	if (!validSurface || upVector.SquaredLength() <= 0)
-		return Super::ProcessContingentMovement_Implementation(MoverActorComponent, MoveInfos, CurrentMomentum, MoveInput, Inputs, DeltaTime);
+		return Super::ProcessContingentMovement_Implementation(MoverActorComponent, MoveInfos, CurrentMomentum, MoveInput, Inputs, SurfacesMovement, DeltaTime);
 
 	FMechanicProperties result;
 	const auto shape = CurrentMomentum.GetShape();
@@ -109,6 +109,7 @@ FMechanicProperties UStdContinuousOnGroundMove::ProcessContingentMovement_Implem
 	result.Linear.TerminalVelocity = moveParams.X;
 	result.Linear.Acceleration = UVectorToolbox::Project3DVector(MoveInput, UVectorToolbox::VectorCone(impactNormal, upVector, 35)) * moveParams.Y * friction;
 	result.Linear.DecelerationSpeed = moveParams.Z * friction;
+	result.SurfacesMovement = SurfacesMovement;
 
 	//Rotation
 	result.Angular.LookOrientation = UVectorToolbox::Project3DVector(MoveInput, upVector).GetSafeNormal() * moveParams.W;
