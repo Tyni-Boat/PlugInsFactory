@@ -79,7 +79,7 @@ void UPhysicToolbox::PostPhysicTrace_internal(const TArray<FHitResult>& Incoming
 	const FVector direction = (IncomingHits[0].TraceEnd - IncomingHits[0].TraceStart);
 	for (int j = 0; j < IncomingHits.Num(); j++)
 	{
-		auto queryType = IncomingHits[j].Component.IsValid()? IncomingHits[j].Component->GetCollisionResponseToChannel(Channel) : ECollisionResponse::ECR_Ignore;
+		auto queryType = IncomingHits[j].HasValidHitObjectHandle()? IncomingHits[j].Component->GetCollisionResponseToChannel(Channel) : ECollisionResponse::ECR_Ignore;
 		outgoingHits.Add(FExpandedHitResult(IncomingHits[j], queryType, queryParams));
 		ESurfaceTraceHitType _offset = ESurfaceTraceHitType::NormalHit;
 		const float abs_penetrationStep = FMath::Abs(PenetrationStep);
