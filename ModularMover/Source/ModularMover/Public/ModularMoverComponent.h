@@ -11,6 +11,7 @@
 #include "TypesLibrary.h"
 #include "Components/ActorComponent.h"
 #include "GameFramework/MovementComponent.h"
+#include "GameFramework/NavMovementComponent.h"
 #include "ModularMoverComponent.generated.h"
 
 
@@ -21,15 +22,28 @@
 class UModularMoverComponent;
 
 
-DECLARE_MULTICAST_DELEGATE_TwoParams(FOnMoveDelegate, UModularMoverComponent*, FMoverCheckRequest)
+DECLARE_DYNAMIC_MULTICAST_SPARSE_DELEGATE_TwoParams(FOnMoveSignature, UModularMoverComponent, OnComponentMoved, UModularMoverComponent*, Component, FMoverCheckRequest, Request);
+
+DECLARE_DYNAMIC_MULTICAST_SPARSE_DELEGATE_ThreeParams(FOnSurfaceCheckSignature, UModularMoverComponent, OnSurfaceCheck, UModularMoverComponent*, Component, FMomentum, Momentum,
+                                                      TArray<FExpandedHitResult>&, HitsResults);
+
+DECLARE_DYNAMIC_MULTICAST_SPARSE_DELEGATE_ThreeParams(FOnContingentChangedSignature, UModularMoverComponent, OnContingentMoveChanged, UModularMoverComponent*, Component, FMoverModeSelection,
+                                                      OldMove,
+                                                      FMoverModeSelection, NewMove);
+
+DECLARE_DYNAMIC_MULTICAST_SPARSE_DELEGATE_ThreeParams(FOnTransientChangedSignature, UModularMoverComponent, OnTransientMoveChanged, UModularMoverComponent*, Component, FMoverModeSelection,
+                                                      OldMove,
+                                                      FMoverModeSelection, NewMove);
+
+DECLARE_DELEGATE_TwoParams(FOnMoveDelegate, UModularMoverComponent*, FMoverCheckRequest)
 
 
 UCLASS(ClassGroup = "Controllers",
 	hidecategories = (Sockets, Object, LOD, Lighting, TextureStreaming, Velocity
 		, PlanarMovement, ComponentTick, ComponentReplication, MovementComponent
-		, Tags, Replication, Navigation, Activation, Cooking, AssetUserData, Collision),
+		, Tags, Replication, Navigation, Activation, Cooking, AssetUserData, Collision, NavMovement),
 	meta = (DisplayName = "Modular Controller", BlueprintSpawnableComponent))
-class MODULARMOVER_API UModularMoverComponent : public UMovementComponent
+class MODULARMOVER_API UModularMoverComponent : public UNavMovementComponent
 {
 	GENERATED_BODY()
 
@@ -37,12 +51,11 @@ public:
 	// Sets default values for this component's properties
 	UModularMoverComponent();
 
-	~UModularMoverComponent();
-
-
 protected:
 	// Called when the game starts
 	virtual void BeginPlay() override;
+
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 	// Register the component to it's subsystem.
 	bool InitialRegistration();
@@ -123,10 +136,18 @@ protected:
 
 public:
 	// Called when ever the location of the controller changed.
-	FOnMoveDelegate OnComponentMoved;
+	FOnMoveDelegate OnComponentMovedInternal;
+
+	// Called when ever the location of the controller changed.
+	UPROPERTY(BlueprintAssignable, Category="Events|Physic")
+	FOnMoveSignature OnComponentMoved;
+
+	// Called when a scan surface is done.
+	UPROPERTY(BlueprintAssignable, Category="Events|Physic")
+	FOnSurfaceCheckSignature OnSurfaceCheck;
 
 	// The rotation offset. helpful when using rotated skeletal mesh components 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Physic|Spacial")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Physic|Spacial")
 	FRotator RotationOffset;
 
 	// The current area chunk
@@ -165,11 +186,8 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, category = "Physic|RigidBody")
 	float Mass = 80;
 
-
 protected:
 	FMomentum _currentMomentum;
-	UPROPERTY()
-	UPhysicalMaterial* _customPhysicMaterial = nullptr;
 	FVector _lastLocation;
 	FVector _lastLocation_trigger;
 	FQuat _lastRotation;
@@ -181,6 +199,19 @@ protected:
 	UPROPERTY()
 	TMap<UPrimitiveComponent*, FTransform> _lastSurfaceTransform;
 
+
+	// Get the current momentum.
+	UFUNCTION(BlueprintPure, Category="Mover|Physic")
+	FORCEINLINE FMomentum GetCurrentMomentum() const { return _currentMomentum; }
+
+	// Get the current Surfaces.
+	UFUNCTION(BlueprintPure, Category="Mover|Physic")
+	FORCEINLINE TArray<FSurface> GetCurrentSurfaces() const
+	{
+		if (ActiveTransientMove.IsValid() && ActiveTransientMove.Surfaces.Num() > 0)
+			return ActiveTransientMove.Surfaces;
+		return ActiveContingentMove.Surfaces;
+	}
 
 	UFUNCTION(BlueprintPure, Category="Mover|Physic")
 	bool IsIgnoringCollision() const;
@@ -224,10 +255,12 @@ protected:
 	                    std::function<void(UPrimitiveComponent*, FVector)> OnPhysicCompHit = {}) const;
 
 	// Calculate Linear velocity. UseReduction subtract the current Linear Velocity from the end result.
-	static FVector ComputeLinearVelocity(const FLinearMechanic AttemptedMovement, const FVector currentLinearVelocity, const FVector SurfacesLinearVelocity, const float deltaTime, bool UseReduction = false);
+	static FVector ComputeLinearVelocity(const FLinearMechanic AttemptedMovement, const FVector currentLinearVelocity, const FVector SurfacesLinearVelocity, const float deltaTime,
+	                                     bool UseReduction = false);
 
 	// Calculate Angular velocity (Rad/s). UseReduction subtract the current Angular Velocity from the end result.
-	static FVector ComputeAngularVelocity(FAngularMechanic AttemptedMovement, FVector CurrentAngularVelocity, const FQuat CurrentOrientation, const FQuat SurfaceAngularVelocity, FVector Gravity,
+	static FVector ComputeAngularVelocity(FAngularMechanic AttemptedMovement, FVector CurrentAngularVelocity, const FQuat CurrentOrientation, const FQuat SurfaceAngularVelocity,
+	                                      FVector Gravity,
 	                                      const float deltaTime, bool UseReduction = false, const FRotator OffsetRotation = FRotator(0));
 
 #pragma endregion
@@ -247,6 +280,14 @@ public:
 	// The currently active Transient move mode.
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadWrite, category = "Movement Modes|Transient")
 	FMoverModeSelection ActiveTransientMove;
+
+	// Called when the current contingent move changed
+	UPROPERTY(BlueprintAssignable, Category="Events|Movement Modes")
+	FOnContingentChangedSignature OnContingentMoveChanged;
+
+	// Called when the current transient move changed
+	UPROPERTY(BlueprintAssignable, Category="Events|Movement Modes")
+	FOnTransientChangedSignature OnTransientMoveChanged;
 
 protected:
 	TQueue<FVector> _chkContingentQueue;
@@ -293,11 +334,11 @@ public:
 
 
 	// Add a Transient move mode
-	UFUNCTION(BlueprintCallable, Category="Mover|Movement Modes|Contingent", meta=(NotBlueprintThreadSafe))
+	UFUNCTION(BlueprintCallable, Category="Mover|Movement Modes|Transient", meta=(NotBlueprintThreadSafe))
 	void AddTransientMoveMode(TSubclassOf<UBaseTransientMove> Class);
 
 	// Remove a Transient move mode
-	UFUNCTION(BlueprintCallable, Category="Mover|Movement Modes|Contingent", meta=(NotBlueprintThreadSafe))
+	UFUNCTION(BlueprintCallable, Category="Mover|Movement Modes|Transient", meta=(NotBlueprintThreadSafe))
 	void RemoveTransientMoveMode(FName MoveName);
 
 
@@ -332,7 +373,7 @@ public:
 	// Get the trajectory
 	UFUNCTION(BlueprintPure, Category="Mover|Movement")
 	static TArray<FMomentum> GetTrajectory(const int SampleCount, const FMechanicProperties inputMovement, const FMomentum currentMomentum, const float timeStep,
-	                                       const FRotator OffsetRotation);
+	                                       const FRotator OffsetRotation, UModularMoverSubsystem* SubSystem = nullptr);
 
 #pragma endregion
 };

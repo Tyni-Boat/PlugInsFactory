@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include <functional>
+
 #include "CoreMinimal.h"
 #include "CollisionShape.h"
 #include "CommonToolboxTypeLibrary.h"
@@ -151,13 +153,53 @@ public:
 
 
 USTRUCT(BlueprintType)
+struct FSurfaceMobility
+{
+	GENERATED_BODY()
+
+public:
+
+	FSurfaceMobility();
+	
+	FSurfaceMobility(const FHitResult& hit);
+	
+	// Update the tacking of the component.
+	bool UpdateTracking(float deltaTime);
+
+	// Get the velocity at a point on the surface. in cm/sec
+	FVector GetVelocityAt(const FVector point, const FVector Normal = FVector(0), const float deltaTime = 0) const;
+	
+	
+	//The linear velocity in Cm/s
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Surface")
+	TWeakObjectPtr<UPrimitiveComponent> Component = nullptr;
+	
+	//The linear velocity in Cm/s
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Surface")
+	FVector LinearVelocity = FVector(0);
+
+	// The angular velocity (axis * angle) in Deg/s
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Surface")
+	FVector AngularVelocity = FVector(0);
+
+	// The target bone.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Surface")
+	FName BoneName = NAME_None;
+
+private:
+	FVector _lastPosition = FVector(NAN);
+	FQuat _lastRotation = FQuat(NAN,NAN,NAN,NAN);
+};
+
+
+USTRUCT(BlueprintType)
 struct MODULARMOVER_API FSurface
 {
 	GENERATED_BODY()
 
 	FSurface();
 
-	FSurface(const FBodyInstance* physicBody, FHitResult hit, ESurfaceTraceHitType offsetType = ESurfaceTraceHitType::NormalHit);
+	FSurface(const FBodyInstance* physicBody, FHitResult hit, ESurfaceTraceHitType offsetType = ESurfaceTraceHitType::NormalHit, float Depth = 0, std::function<void()> OnBoneChanged = nullptr);
 
 	// the hit ray from witch the surface were detected. 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Surface")
@@ -179,44 +221,24 @@ struct MODULARMOVER_API FSurface
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Surface")
 	bool bCanStepOn = false;
 
+	// The hit depth
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Surface")
+	float HitDepth = 0;
+
 	// Get surface friction (X), surface bounciness (Y)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Surface")
 	FVector SurfacePhysicProperties = FVector(1, 0, 0);
 
 
-	// Update the tacking of the component.
-	bool UpdateTracking(float deltaTime);
 
 	// Update information about the hit
-	void UpdateHit(const FBodyInstance* physicBody, FHitResult hit, ESurfaceTraceHitType offsetType);
+	void UpdateHit(const FBodyInstance* physicBody, FHitResult hit, ESurfaceTraceHitType offsetType, std::function<void()> OnBoneChanged = nullptr);
 
 	// Apply a force on the surface at a point on it and return the velocity of the surface at the point before force application. use reaction to apply force only if it's opposed to the surface normal
 	FVector ApplyForceAtOnSurface(const FVector point, const FVector force, bool reactionForce = false) const;
 
 	// Get the velocity planed on the surface normal. reaction planar return the same velocity if the dot product with normal > 0.
 	FVector GetVelocityAlongNormal(const FVector velocity, const bool useImpactNormal = false, const bool reactionPlanarOnly = false) const;
-
-	// Get the velocity at a point on the surface. in cm/sec
-	FVector GetVelocityAt(const FVector point, const float deltaTime = 0) const;
-
-
-	//Linear Velocity
-public:
-	//The linear velocity in Cm/s
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Surface")
-	FVector LinearVelocity = FVector(0);
-
-private:
-	FVector _lastPosition = FVector(NAN);
-
-	//Angular Velocity
-public:
-	// The angular velocity (axis * angle) in Deg/s
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Surface")
-	FVector AngularVelocity = FVector(0);
-
-private:
-	FQuat _lastRotation = FQuat(NAN,NAN,NAN,NAN);
 };
 
 
@@ -579,11 +601,11 @@ public:
 
 	//Get surface combined surface average linear velocity
 	UFUNCTION(BlueprintPure, Category = "StructExtension|Inputs", meta=(BlueprintThreadSafe))
-	static FVector GetAverageSurfaceVelocityAt(const TArray<FSurface>& Surfaces, const FVector point, const float deltaTime, ECollisionResponse channelFilter);
+	static FVector GetAverageSurfaceVelocityAt(const TArray<FSurfaceMobility>& SurfacesMobilities, const FVector point, const float deltaTime, FVector Normal = FVector(0));
 
 	//Get surface combined surface average angular velocity. (Deg/s)
 	UFUNCTION(BlueprintPure, Category = "StructExtension|Inputs", meta=(BlueprintThreadSafe))
-	static FVector GetAverageSurfaceAngularSpeed(const TArray<FSurface>& Surfaces, ECollisionResponse channelFilter);
+	static FVector GetAverageSurfaceAngularSpeed(const TArray<FSurfaceMobility>& SurfacesMobilities);
 
 	//Get surface highest physic properties (X) friction, (Y) bounciness.
 	UFUNCTION(BlueprintPure, Category = "StructExtension|Inputs", meta=(BlueprintThreadSafe))
@@ -631,7 +653,7 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Default")
 	FVector ScanSurfaceVector = FVector(0);
 
-	// The offset in the counter direction where to scan for surfaces
+	// The offset in the counter direction where to scan for surfaces. Can Add overheat, don't use if possible.
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Default")
 	float ScanSurfaceOffset = 0;
 

@@ -15,10 +15,14 @@
 UStdContinuousOnGroundMove::UStdContinuousOnGroundMove()
 {
 	this->ModeName = "OnGround";
-	this->Priority = 3;
-	this->BlendSpeed = FVector2D(10, 10);
-	this->ScanSurfaceVector = FVector(0, 0, -500);
-	this->ScanSurfaceOffset = 150;
+	if (this->Priority <= 0)
+		this->Priority = 6;
+	if (this->BlendSpeed.SquaredLength() <= 0)
+		this->BlendSpeed = FVector2D(10, 10);
+	if (this->ScanSurfaceVector.SquaredLength() <= 0)
+		this->ScanSurfaceVector = FVector(0, 0, -50);
+	if (this->ScanSurfaceOffset <= 0)
+		this->ScanSurfaceOffset = 50;
 }
 
 bool UStdContinuousOnGroundMove::CheckContingentMovement_Implementation(UActorComponent* MoverActorComponent, const TArray<FExpandedHitResult>& Surfaces,
@@ -45,7 +49,7 @@ bool UStdContinuousOnGroundMove::CheckContingentMovement_Implementation(UActorCo
 			continue;
 		if (Surfaces[i].CollisionResponse != ECR_Block)
 			continue;
-		if (Surfaces[i].HitResult.Component->GetCollisionObjectType() != GroundChannel)
+		if (!GroundChannels.Contains(Surfaces[i].HitResult.Component->GetCollisionObjectType()))
 			continue;
 		const FVector fromCenterVector = Surfaces[i].HitResult.ImpactPoint - CurrentMomentum.Transform.GetLocation();
 		const FVector fromLowPtVector = Surfaces[i].HitResult.ImpactPoint - lowestPoint;
@@ -69,7 +73,7 @@ bool UStdContinuousOnGroundMove::CheckContingentMovement_Implementation(UActorCo
 			continue;
 		if (surfaceCenterHeightVector.Length() >= bestDistance)
 		{
-			if (!FMath::IsNearlyEqual(surfaceCenterHeightVector.Length(), bestDistance, 1))
+			if (!FMath::IsNearlyEqual(surfaceCenterHeightVector.Length(), bestDistance, 0.1))
 				continue;
 			if (angle >= bestAngle)
 				continue;
@@ -113,6 +117,14 @@ FMechanicProperties UStdContinuousOnGroundMove::ProcessContingentMovement_Implem
 
 	//Rotation
 	result.Angular.LookOrientation = UVectorToolbox::Project3DVector(MoveInput, upVector).GetSafeNormal() * moveParams.W;
+
+	//Root Motion
+	FVector linearRM;
+	if (UStructExtension::ReadVectorInput(Inputs, RootMotionLinearVelocityInput, linearRM))
+		result.Linear.Acceleration = (linearRM / DeltaTime) * friction;
+	FRotator angularRM;
+	if (UStructExtension::ReadRotationInput(Inputs, RootMotionAngularVelocityInput, angularRM))
+		result.Angular.OrientationDiff = angularRM.Quaternion();
 
 	//Sliding
 	const float angle = FMath::Acos(impactNormal | upVector);

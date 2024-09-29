@@ -2,6 +2,9 @@
 
 
 #include "TypesLibrary.h"
+
+#include <functional>
+
 #include "Runtime/Engine/Classes/Engine/EngineTypes.h"
 #include "Engine/HitResult.h"
 #include "Engine/World.h"
@@ -15,31 +18,32 @@
 
 //------------------------------------------------------------------------------------------------------------------------
 
-FSurface::FSurface()
+FSurfaceMobility::FSurfaceMobility()
 {
 }
 
-FSurface::FSurface(const FBodyInstance* physicBody, FHitResult hit, ESurfaceTraceHitType offsetType)
+FSurfaceMobility::FSurfaceMobility(const FHitResult& hit)
 {
-	UpdateHit(physicBody, hit, offsetType);
+	Component = hit.Component;
+	BoneName = hit.BoneName;
 }
 
-bool FSurface::UpdateTracking(float deltaTime)
+bool FSurfaceMobility::UpdateTracking(float deltaTime)
 {
 	FVector linearVelocity = FVector(0);
 	FVector angularVelocity = FVector(0);
 	bool validSurface = false;
 
-	if (HitResult.Component.IsValid())
+	if (Component.IsValid())
 	{
 		validSurface = true;
 
 		//Linear Part
-		linearVelocity = _lastPosition.ContainsNaN() ? FVector(0) : (HitResult.Component->GetSocketLocation(HitResult.BoneName) - _lastPosition) / deltaTime;
-		_lastPosition = HitResult.Component->GetSocketLocation(HitResult.BoneName);
+		linearVelocity = _lastPosition.ContainsNaN() ? FVector(0) : (Component->GetSocketLocation(BoneName) - _lastPosition) / deltaTime;
+		_lastPosition = Component->GetSocketLocation(BoneName);
 
 		//Angular
-		const FQuat targetQuat = HitResult.Component->GetSocketQuaternion(HitResult.BoneName);
+		const FQuat targetQuat = Component->GetSocketQuaternion(BoneName);
 		FQuat currentQuat = _lastRotation;
 
 		//Get Angular speed
@@ -53,7 +57,7 @@ bool FSurface::UpdateTracking(float deltaTime)
 			axis.Normalize();
 			angularVelocity = axis * FMath::RadiansToDegrees(angle / deltaTime);
 		}
-		_lastRotation = HitResult.Component->GetSocketQuaternion(HitResult.BoneName);
+		_lastRotation = Component->GetSocketQuaternion(BoneName);
 	}
 
 	LinearVelocity = linearVelocity;
@@ -61,14 +65,47 @@ bool FSurface::UpdateTracking(float deltaTime)
 	return validSurface;
 }
 
-void FSurface::UpdateHit(const FBodyInstance* physicBody, FHitResult hit, ESurfaceTraceHitType offsetType)
+FVector FSurfaceMobility::GetVelocityAt(const FVector point, const FVector Normal, const float deltaTime) const
+{
+	FVector linearPart = LinearVelocity;
+	if (Normal.SquaredLength() > 0 && linearPart.SquaredLength() > 0)
+	{
+		linearPart = (linearPart.GetSafeNormal() | Normal) >= 0 ? LinearVelocity : FVector::VectorPlaneProject(LinearVelocity, Normal);
+	}
+	if (!Component.IsValid())
+		return linearPart;
+
+	//Angular part
+	const FVector rotationAxis = AngularVelocity.GetSafeNormal();
+	const FVector radiusDirection = FVector::VectorPlaneProject(point - Component->GetSocketLocation(BoneName), rotationAxis).GetSafeNormal();
+	FVector tangentialDirection = FVector::CrossProduct(rotationAxis, radiusDirection);
+	tangentialDirection.Normalize();
+	const double radius = FVector::VectorPlaneProject(point - Component->GetSocketLocation(BoneName), rotationAxis).Length();
+	const double angle = FMath::DegreesToRadians(AngularVelocity.Length());
+	const FVector rotVel = radius * angle * tangentialDirection;
+	const FVector centripetal = -radiusDirection * (angle * angle) * radius * deltaTime * deltaTime * 1.5; //(1 + deltaTime);
+
+	//Finally
+	return linearPart + rotVel + centripetal;
+}
+
+
+FSurface::FSurface()
+{
+}
+
+FSurface::FSurface(const FBodyInstance* physicBody, FHitResult hit, ESurfaceTraceHitType offsetType, float Depth, std::function<void()> OnBoneChanged)
+{
+	UpdateHit(physicBody, hit, offsetType, OnBoneChanged);
+	HitDepth = Depth;
+}
+
+void FSurface::UpdateHit(const FBodyInstance* physicBody, FHitResult hit, ESurfaceTraceHitType offsetType, std::function<void()> OnBoneChanged)
 {
 	if (HitResult.BoneName != hit.BoneName)
 	{
-		_lastPosition = FVector(NAN);
-		_lastRotation = FQuat(NAN,NAN,NAN,NAN);
-		LinearVelocity = FVector(0);
-		AngularVelocity = FVector(0);
+		if (OnBoneChanged)
+			OnBoneChanged();
 	}
 	HitResult = hit;
 	SurfaceOffsetType = offsetType;
@@ -111,30 +148,6 @@ FVector FSurface::GetVelocityAlongNormal(const FVector velocity, const bool useI
 	if (reactionPlanarOnly && (normal | velocity) > 0)
 		return velocity;
 	return FVector::VectorPlaneProject(velocity, normal);
-}
-
-FVector FSurface::GetVelocityAt(const FVector point, const float deltaTime) const
-{
-	FVector linearPart = LinearVelocity;
-	if (HitResult.Normal.SquaredLength() > 0 && linearPart.SquaredLength() > 0)
-	{
-		linearPart = (linearPart.GetSafeNormal() | HitResult.Normal) >= 0 ? LinearVelocity : FVector::VectorPlaneProject(LinearVelocity, HitResult.Normal);
-	}
-	if (!HitResult.Component.IsValid())
-		return linearPart;
-
-	//Angular part
-	const FVector rotationAxis = AngularVelocity.GetSafeNormal();
-	const FVector radiusDirection = FVector::VectorPlaneProject(point - HitResult.Component->GetSocketLocation(HitResult.BoneName), rotationAxis).GetSafeNormal();
-	FVector tangentialDirection = FVector::CrossProduct(rotationAxis, radiusDirection);
-	tangentialDirection.Normalize();
-	const double radius = FVector::VectorPlaneProject(point - HitResult.Component->GetSocketLocation(HitResult.BoneName), rotationAxis).Length();
-	const double angle = FMath::DegreesToRadians(AngularVelocity.Length());
-	const FVector rotVel = radius * angle * tangentialDirection;
-	const FVector centripetal = -radiusDirection * (angle * angle) * radius * deltaTime * deltaTime * 1.5; //(1 + deltaTime);
-
-	//Finally
-	return linearPart + rotVel + centripetal;
 }
 
 
@@ -246,17 +259,15 @@ FVector UStructExtension::GetSurfacesVelocityFromNormal(const TArray<FSurface>& 
 	return subSequentVelocity;
 }
 
-FVector UStructExtension::GetAverageSurfaceVelocityAt(const TArray<FSurface>& Surfaces, const FVector point, const float deltaTime, ECollisionResponse channelFilter)
+FVector UStructExtension::GetAverageSurfaceVelocityAt(const TArray<FSurfaceMobility>& SurfacesMobilities, const FVector point, const float deltaTime, FVector Normal)
 {
-	if (Surfaces.Num() <= 0)
+	if (SurfacesMobilities.Num() <= 0)
 		return FVector(0);
 	FVector cumulated = FVector(0);
-	for (int i = 0; i < Surfaces.Num(); i++)
+	for (int i = 0; i < SurfacesMobilities.Num(); i++)
 	{
-		const auto surface = Surfaces[i];
-		if (channelFilter != ECR_MAX && surface.QueryResponse != channelFilter)
-			continue;
-		const FVector surVel = surface.GetVelocityAt(point, deltaTime);
+		const auto surfaceMob = SurfacesMobilities[i];
+		const FVector surVel = surfaceMob.GetVelocityAt(point, Normal, deltaTime);
 		if (cumulated.IsNearlyZero())
 		{
 			cumulated = surVel;
@@ -279,17 +290,15 @@ FVector UStructExtension::GetAverageSurfaceVelocityAt(const TArray<FSurface>& Su
 	return cumulated;
 }
 
-FVector UStructExtension::GetAverageSurfaceAngularSpeed(const TArray<FSurface>& Surfaces, ECollisionResponse channelFilter)
+FVector UStructExtension::GetAverageSurfaceAngularSpeed(const TArray<FSurfaceMobility>& SurfacesMobilities)
 {
-	if (Surfaces.Num() <= 0)
+	if (SurfacesMobilities.Num() <= 0)
 		return FVector(0);
 	FVector cumulated = FVector(0);
-	for (int i = 0; i < Surfaces.Num(); i++)
+	for (int i = 0; i < SurfacesMobilities.Num(); i++)
 	{
-		const auto surface = Surfaces[i];
-		if (channelFilter != ECR_MAX && surface.QueryResponse != channelFilter)
-			continue;
-		const FVector surRotVel = surface.AngularVelocity;
+		const auto surfaceMob = SurfacesMobilities[i];
+		const FVector surRotVel = surfaceMob.AngularVelocity;
 		FVector axis = surRotVel;
 		if (!axis.Normalize())
 			continue;
@@ -383,7 +392,7 @@ bool UBaseTransientMove::CheckTransientMovement_Implementation(UActorComponent* 
 FMechanicProperties UBaseTransientMove::ProcessTransientMovement_Implementation(UActorComponent* MoverActorComponent, const FMechanicProperties ContingentMove,
                                                                                 FTransientMoveInfos& MoveInfos,
                                                                                 const FMomentum& CurrentMomentum, const FVector MoveInput,
-                                                                                const FMoverInputPool Inputs,const FTransform SurfacesMovement, const float DeltaTime) const
+                                                                                const FMoverInputPool Inputs, const FTransform SurfacesMovement, const float DeltaTime) const
 {
 	return ContingentMove;
 }

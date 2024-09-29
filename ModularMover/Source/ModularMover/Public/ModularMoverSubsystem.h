@@ -35,6 +35,12 @@ private:
 	UPROPERTY()
 	TMap<FName, FMoveModeReference> _transientModeLibrary;
 
+	UPROPERTY()
+	TMap<TWeakObjectPtr<UPrimitiveComponent>, FSurfaceMobility> _trackedSurfaces;
+
+	UPROPERTY()
+	UPhysicalMaterial* _customPhysicMaterial = nullptr;
+
 public:
 	void RegisterComponent(UModularMoverComponent* mover);
 
@@ -61,4 +67,38 @@ public:
 	UBaseContingentMove* GetContingentMoveObject(const FName ModeName);
 
 	UBaseTransientMove* GetTransientMoveObject(const FName ModeName);
+
+	void AddTrackedSurface(const FHitResult& hit);
+
+
+	FORCEINLINE UPhysicalMaterial* GetStdNoFrictionPhysicMaterial() const { return _customPhysicMaterial; }
+
+	FORCEINLINE FSurfaceMobility GetSurfaceMobility(const TWeakObjectPtr<UPrimitiveComponent> target) const { return _trackedSurfaces.Contains(target) ? _trackedSurfaces[target] : FSurfaceMobility(); }
+
+	FORCEINLINE FSurfaceMobility GetSurfaceMobility(const FSurface surface) const
+	{
+		return _trackedSurfaces.Contains(surface.HitResult.Component) ? _trackedSurfaces[surface.HitResult.Component] : FSurfaceMobility();
+	}
+
+	FORCEINLINE TArray<FSurfaceMobility> GetSurfaceMobilities(const TArray<TWeakObjectPtr<UPrimitiveComponent>>& targets) const
+	{
+		TArray<FSurfaceMobility> surfMobs;
+		for (const auto t : targets)
+			surfMobs.Add(GetSurfaceMobility(t));
+		return surfMobs;
+	}
+
+	FORCEINLINE TArray<FSurfaceMobility> GetSurfaceMobilities(const TArray<FSurface>& surfaces) const
+	{
+		TArray<FSurfaceMobility> surfMobs;
+		for (const auto t : surfaces)
+			surfMobs.Add(GetSurfaceMobility(t));
+		return surfMobs;
+	}
+
+private:
+	void UpdateTrackedSurface(const float& deltaTime);\
+
+	void RemoveTrackedComponent(UActorComponent* Component);
 };
+

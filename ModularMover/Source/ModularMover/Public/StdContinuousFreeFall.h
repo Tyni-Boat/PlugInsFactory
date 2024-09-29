@@ -7,9 +7,9 @@
 #include "StdContinuousFreeFall.generated.h"
 
 /**
- * 
+ * Priority 3 Standard free fall movement mode.
  */
-UCLASS(BlueprintType, Blueprintable, ClassGroup = "Mover|Movement Modes|Contingents", Abstract, HideCategories=(Default))
+UCLASS(BlueprintType, Blueprintable, ClassGroup = "Mover|Movement Modes|Contingents", Abstract)
 class MODULARMOVER_API UStdContinuousFreeFall : public UBaseContingentMove
 {
 	GENERATED_BODY()

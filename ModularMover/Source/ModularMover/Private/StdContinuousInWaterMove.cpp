@@ -16,10 +16,12 @@
 UStdContinuousInWaterMove::UStdContinuousInWaterMove()
 {
 	this->ModeName = "InWater";
-	this->Priority = 4;
-	this->BlendSpeed = FVector2D(10, 10);
-	this->ScanSurfaceVector = FVector(0, 0, 5000);
-	this->ScanSurfaceOffset = 0;
+	if (this->Priority <= 0)
+		this->Priority = 9;
+	if (this->BlendSpeed.SquaredLength() <= 0)
+		this->BlendSpeed = FVector2D(10, 10);
+	if (this->ScanSurfaceVector.SquaredLength() <= 0)
+		this->ScanSurfaceVector = FVector(0, 0, 5000);
 }
 
 bool UStdContinuousInWaterMove::CheckContingentMovement_Implementation(UActorComponent* MoverActorComponent, const TArray<FExpandedHitResult>& Surfaces,
@@ -130,19 +132,16 @@ FMechanicProperties UStdContinuousInWaterMove::ProcessContingentMovement_Impleme
 	//Rotation
 	result.Angular.LookOrientation = UVectorToolbox::Project3DVector(MoveInput, upVector).GetSafeNormal() * moveParams.W;
 
+	//Root Motion
+	FVector linearRM;
+	if (UStructExtension::ReadVectorInput(Inputs, RootMotionLinearVelocityInput, linearRM))
+		result.Linear.Acceleration = (FVector::VectorPlaneProject(linearRM, upVector) / DeltaTime + verticalMoveInp) * viscosity;
+	FRotator angularRM;
+	if (UStructExtension::ReadRotationInput(Inputs, RootMotionAngularVelocityInput, angularRM))
+		result.Angular.OrientationDiff = angularRM.Quaternion();
+
 	//Buoyancy
 	FVector buoyancyVector = UVectorToolbox::GetSnapOnSurfaceVector(lowestPoint + upVector * FloatingHeight, waterHitClone, upVector);
-	// if (buoyancyVector.Length() > 5)
-	// {
-	// 	buoyancyVector *= ArchimedForceScale;
-	// 	if ((verticalVelocity | -upVector) < 0)
-	// 	{
-	// 		const FVector kinetic = -UPhysicToolbox::GetKineticEnergy(verticalVelocity, CurrentMomentum.Mass, FMath::Abs(immersion - FloatingHeight));
-	// 		const float controllerLenght = (lowestPoint - highestPoint).Length();
-	// 		buoyancyVector += (kinetic / CurrentMomentum.Mass) * FMath::Clamp((immersion - OutWaterImmersion) / (controllerLenght - FloatingHeight), 0, 1);
-	// 	}
-	// 	result.Linear.Acceleration += buoyancyVector;
-	// }
 	result.SurfacesMovement.SetTranslation(buoyancyVector * ArchimedForceScale + SurfacesMovement.GetTranslation());
 
 	return result;

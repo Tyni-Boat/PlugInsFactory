@@ -7,9 +7,9 @@
 #include "StdContinuousInWaterMove.generated.h"
 
 /**
- * 
+ *  Priority 9 Standard In Water movement mode.
  */
-UCLASS(BlueprintType, Blueprintable, ClassGroup = "Mover|Movement Modes|Contingents", Abstract, HideCategories=(Default))
+UCLASS(BlueprintType, Blueprintable, ClassGroup = "Mover|Movement Modes|Contingents", Abstract)
 class MODULARMOVER_API UStdContinuousInWaterMove : public UBaseContingentMove
 {
 	GENERATED_BODY()
@@ -19,7 +19,7 @@ public:
 
 	// Water object type
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="In Water | Detection")
-	TEnumAsByte<ECollisionChannel> WaterChannel = ECC_WorldDynamic;
+	TEnumAsByte<ECollisionChannel> WaterChannel = ECC_WorldStatic;
 
 	// The immersion depth to keep When floating. also serve to trigger in the swimming state.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="In Water | Detection")
@@ -33,6 +33,15 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="In Water | Detection")
 	FName WaterSurfaceLocation = NAME_None;
 
+
+	
+	// The name of the Root motion linear velocity input, as vector
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="In Water | Movement")
+	FName RootMotionLinearVelocityInput = NAME_None;
+
+	// The name of the Root motion angular velocity input, as Rotation
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="In Water | Movement")
+	FName RootMotionAngularVelocityInput = NAME_None;
 
 	// The scale of the archimed force.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="In Water | Movement")

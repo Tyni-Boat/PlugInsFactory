@@ -9,10 +9,12 @@
 UStdContinuousFreeFall::UStdContinuousFreeFall()
 {
 	this->ModeName = "FreeFall";
-	this->Priority = 1;
-	this->BlendSpeed = FVector2D(10, 10);
-	this->ScanSurfaceVector = FVector(0, 0, -5000);
-	this->ScanSurfaceOffset = 0;
+	if (this->Priority <= 0)
+		this->Priority = 3;
+	if (this->BlendSpeed.SquaredLength() <= 0)
+		this->BlendSpeed = FVector2D(10, 10);
+	if (this->ScanSurfaceVector.SquaredLength() <= 0)
+		this->ScanSurfaceVector = FVector(0, 0, -5000);
 }
 
 bool UStdContinuousFreeFall::CheckContingentMovement_Implementation(UActorComponent* MoverActorComponent, const TArray<FExpandedHitResult>& Surfaces, FContingentMoveInfos& MoveInfos,

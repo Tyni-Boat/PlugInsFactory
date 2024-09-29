@@ -19,7 +19,7 @@ void UModularMoverSubsystem::RegisterComponent(UModularMoverComponent* mover)
 	fakeMomentum.Transform = mover->GetOwner()->GetActorTransform();
 	FBodyInstance fakeBody = FBodyInstance();
 	UpdateChunk(mover, FMoverCheckRequest(&fakeBody, fakeMomentum, FMoverInputPool()));
-	mover->OnComponentMoved.AddUObject(this, &UModularMoverSubsystem::UpdateChunk);
+	mover->OnComponentMovedInternal.BindUObject(this, &UModularMoverSubsystem::UpdateChunk);
 	for (int i = 0; i < mover->ContingentMoveClasses.Num(); i++)
 	{
 		mover->AddContingentMoveMode(mover->ContingentMoveClasses[i]);
@@ -175,7 +175,15 @@ bool UModularMoverSubsystem::RemoveTransientLibrary(FName ModeName)
 
 void UModularMoverSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
-	Super::Initialize(Collection);
+	Super::Initialize(Collection);	
+	_customPhysicMaterial = NewObject<UPhysicalMaterial>();
+	_customPhysicMaterial->bOverrideFrictionCombineMode = true;
+	_customPhysicMaterial->bOverrideRestitutionCombineMode = true;
+	_customPhysicMaterial->Friction = 0;
+	_customPhysicMaterial->StaticFriction = 0;
+	_customPhysicMaterial->FrictionCombineMode = EFrictionCombineMode::Min;
+	_customPhysicMaterial->Restitution = 0;
+	_customPhysicMaterial->RestitutionCombineMode = EFrictionCombineMode::Min;
 }
 
 void UModularMoverSubsystem::Deinitialize()
@@ -186,6 +194,7 @@ void UModularMoverSubsystem::Deinitialize()
 void UModularMoverSubsystem::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+	UpdateTrackedSurface(DeltaTime);
 }
 
 TStatId UModularMoverSubsystem::GetStatId() const
@@ -205,4 +214,34 @@ UBaseTransientMove* UModularMoverSubsystem::GetTransientMoveObject(const FName M
 	if (!_transientModeLibrary.Contains(ModeName))
 		return {};
 	return static_cast<UBaseTransientMove*>(_transientModeLibrary[ModeName].MovementModeInstance.Get());
+}
+
+void UModularMoverSubsystem::AddTrackedSurface(const FHitResult& hit)
+{
+	if(!hit.Component.IsValid())
+		return;
+	if(_trackedSurfaces.Contains(hit.Component))
+		return;
+	_trackedSurfaces.Add(hit.Component, FSurfaceMobility(hit));
+	hit.Component->OnComponentDeactivated.AddDynamic(this, &UModularMoverSubsystem::RemoveTrackedComponent);
+}
+
+void UModularMoverSubsystem::UpdateTrackedSurface(const float& deltaTime)
+{
+	for(auto SurfaceMob: _trackedSurfaces)
+	{
+		_trackedSurfaces[SurfaceMob.Key].UpdateTracking(deltaTime);
+	}
+}
+
+void UModularMoverSubsystem::RemoveTrackedComponent(UActorComponent* Component)
+{
+	if(!Component)
+		return;
+	const UPrimitiveComponent* asPrimitive = Cast<UPrimitiveComponent>(Component);
+	if(!asPrimitive)
+		return;
+	if(!_trackedSurfaces.Contains(asPrimitive))
+		return;
+	_trackedSurfaces.Remove(asPrimitive);
 }
