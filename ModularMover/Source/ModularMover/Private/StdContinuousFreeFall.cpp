@@ -38,7 +38,7 @@ FMechanicProperties UStdContinuousFreeFall::ProcessContinuousMovement_Implementa
 	FMechanicProperties result;
 	result.Gravity = GravityVector;
 	result.Linear.Acceleration = (fallingVelocity.Length() < TerminalVelocity ? fallingVelocity + GravityVector * DeltaTime : fallingVelocity)
-		+ ((steeringVelocity | steeringVector) > 0 ? ( steeringVelocity) : steeringVelocity + steeringVector * DeltaTime);
+		+ (UVectorToolbox::AddVectorUntilLimit(steeringVelocity, steeringVector * DeltaTime, PlanarMoveVelocity));
 	result.Angular.LookOrientation = UVectorToolbox::Project3DVector(MoveInput, GravityVector).GetSafeNormal() * TurnSpeed;
 	return result;
 }
