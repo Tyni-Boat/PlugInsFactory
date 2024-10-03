@@ -9,8 +9,8 @@
 /**
  * Priority 3 Standard free fall movement mode.
  */
-UCLASS(BlueprintType, Blueprintable, ClassGroup = "Mover|Movement Modes|Contingents", Abstract)
-class MODULARMOVER_API UStdContinuousFreeFall : public UBaseContingentMove
+UCLASS(BlueprintType, Blueprintable, ClassGroup = "Mover|Movement Modes|Continuouss", Abstract)
+class MODULARMOVER_API UStdContinuousFreeFall : public UBaseContinuousMove
 {
 	GENERATED_BODY()
 
@@ -34,12 +34,12 @@ public:
 	float TurnSpeed = 90;
 
 
-	virtual bool CheckContingentMovement_Implementation(UActorComponent* MoverActorComponent, const TArray<FExpandedHitResult>& Surfaces, FContingentMoveInfos& MoveInfos,
+	virtual bool CheckContinuousMovement_Implementation(UActorComponent* MoverActorComponent, const TArray<FMoverHitResult>& Surfaces, FContinuousMoveInfos& MoveInfos,
 	                                                    const FMomentum& CurrentMomentum, const FVector MoveInput,
-	                                                    const FMoverInputPool Inputs, const TArray<FContingentMoveInfos>& ContingentMoves, const TArray<FTransientMoveInfos>& TransientMoves,
+	                                                    const FMoverInputPool Inputs, const TArray<FContinuousMoveInfos>& ContinuousMoves, const TArray<FTemporaryMoveInfos>& TemporaryMoves,
 	                                                    TMap<FName, FVector>& CustomProperties, int& SurfacesFlag) const override;
 
-	virtual FMechanicProperties ProcessContingentMovement_Implementation(UActorComponent* MoverActorComponent, FContingentMoveInfos& MoveInfos, const FMomentum& CurrentMomentum,
+	virtual FMechanicProperties ProcessContinuousMovement_Implementation(UActorComponent* MoverActorComponent, FContinuousMoveInfos& MoveInfos, const FMomentum& CurrentMomentum,
 	                                                                     const FVector MoveInput,
 	                                                                     const FMoverInputPool Inputs, const FTransform SurfacesMovement, const float DeltaTime) const override;
 };

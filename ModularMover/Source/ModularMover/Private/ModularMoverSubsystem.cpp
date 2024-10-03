@@ -8,94 +8,11 @@
 #include "ModularMoverComponent.h"
 
 
-void UModularMoverSubsystem::RegisterComponent(UModularMoverComponent* mover)
-{
-	if (!mover)
-		return;
-	if (_registeredMovers.Contains(mover))
-		return;
-	_registeredMovers.Add(mover);
-	FMomentum fakeMomentum;
-	fakeMomentum.Transform = mover->GetOwner()->GetActorTransform();
-	FBodyInstance fakeBody = FBodyInstance();
-	UpdateChunk(mover, FMoverCheckRequest(&fakeBody, fakeMomentum, FMoverInputPool()));
-	mover->OnComponentMovedInternal.BindUObject(this, &UModularMoverSubsystem::UpdateChunk);
-	for (int i = 0; i < mover->ContingentMoveClasses.Num(); i++)
-	{
-		mover->AddContingentMoveMode(mover->ContingentMoveClasses[i]);
-	}
-	for (int i = 0; i < mover->TransientMoveClasses.Num(); i++)
-	{
-		mover->AddTransientMoveMode(mover->TransientMoveClasses[i]);
-	}
-}
-
-
-void UModularMoverSubsystem::UnRegisterComponent(UModularMoverComponent* mover)
-{
-	if (!mover)
-		return;
-	const int index = _registeredMovers.IndexOfByKey(mover);
-	if (!_registeredMovers.IsValidIndex(index))
-		return;
-	_registeredMovers.RemoveAt(index);
-	for (int i = 0; i < mover->ContingentMoveState.Num(); i++)
-		mover->RemoveContingentMoveMode(mover->ContingentMoveState[i].BaseInfos.ModeName);
-	for (int i = 0; i < mover->TransientMoveState.Num(); i++)
-		mover->RemoveTransientMoveMode(mover->TransientMoveState[i].BaseInfos.ModeName);
-}
-
-
-void UModularMoverSubsystem::UpdateChunk(UModularMoverComponent* mover, FMoverCheckRequest Request)
-{
-	if (!mover)
-		return;
-	const FVector location = Request.Momentum.Transform.GetLocation();
-	constexpr float divider = MOVER_CHUNK_SIZE;
-	const int X = static_cast<int>(location.X / divider);
-	const int Y = static_cast<int>(location.Y / divider);
-	const int Z = static_cast<int>(location.Z / divider);
-	const FChunkAreaID oldKey = mover->CurrentAreaChunk;
-	const FChunkAreaID newKey = FChunkAreaID(X, Y, Z);
-	if (oldKey == newKey)
-	{
-		if (!_areaChunks.Contains(oldKey))
-		{
-			FMoverAreaChunk chunk;
-			chunk.Movers.Add(mover);
-			_areaChunks.Add(oldKey, chunk);
-		}
-		return;
-	}
-	if (_areaChunks.Contains(oldKey))
-	{
-		const int oldIndex = _areaChunks[oldKey].Movers.IndexOfByKey(mover);
-		if (_areaChunks[oldKey].Movers.IsValidIndex(oldIndex))
-			_areaChunks[oldKey].Movers.RemoveAt(oldIndex);
-	}
-
-	mover->CurrentAreaChunk = newKey;
-
-	if (!_areaChunks.Contains(newKey))
-	{
-		FMoverAreaChunk chunk;
-		chunk.Movers.Add(mover);
-		_areaChunks.Add(newKey, chunk);
-		return;
-	}
-
-	const int newIndex = _areaChunks[newKey].Movers.IndexOfByKey(mover);
-	if (!_areaChunks[newKey].Movers.IsValidIndex(newIndex))
-	{
-		_areaChunks[newKey].Movers.Add(mover);
-	}
-}
-
-bool UModularMoverSubsystem::AddContingentLibrary(FContingentMoveInfos& OutMoveInfos, TSubclassOf<UBaseContingentMove> ModeClass)
+bool UModularMoverSubsystem::AddContinuousLibrary(FContinuousMoveInfos& OutMoveInfos, TSubclassOf<UBaseContinuousMove> ModeClass)
 {
 	if (!ModeClass)
 		return false;
-	if (const auto instance = Cast<UBaseContingentMove>(ModeClass->GetDefaultObject()))
+	if (const auto instance = Cast<UBaseContinuousMove>(ModeClass->GetDefaultObject()))
 	{
 		if (instance->ModeName.IsNone())
 			return false;
@@ -108,16 +25,15 @@ bool UModularMoverSubsystem::AddContingentLibrary(FContingentMoveInfos& OutMoveI
 			const FMoveModeReference reference = FMoveModeReference(instance);
 			_contigentModeLibrary.Add(instance->ModeName, reference);
 		}
-		
-		OutMoveInfos = FContingentMoveInfos(instance);
+
+		OutMoveInfos = FContinuousMoveInfos(instance);
 		return true;
 	}
-	
+
 	return false;
 }
 
-
-bool UModularMoverSubsystem::RemoveContingentLibrary(FName ModeName)
+bool UModularMoverSubsystem::RemoveContinuousLibrary(FName ModeName)
 {
 	if (_contigentModeLibrary.Contains(ModeName))
 	{
@@ -132,39 +48,39 @@ bool UModularMoverSubsystem::RemoveContingentLibrary(FName ModeName)
 	return false;
 }
 
-bool UModularMoverSubsystem::AddTransientLibrary(FTransientMoveInfos& OutMoveInfos, TSubclassOf<UBaseTransientMove> ModeClass)
+bool UModularMoverSubsystem::AddTemporaryLibrary(FTemporaryMoveInfos& OutMoveInfos, TSubclassOf<UBaseTemporaryMove> ModeClass)
 {
 	if (!ModeClass)
 		return false;
-	if (const auto instance = Cast<UBaseTransientMove>(ModeClass->GetDefaultObject()))
+	if (const auto instance = Cast<UBaseTemporaryMove>(ModeClass->GetDefaultObject()))
 	{
 		if (instance->ModeName.IsNone())
 			return false;
-		if (_transientModeLibrary.Contains(instance->ModeName))
+		if (_TemporaryModeLibrary.Contains(instance->ModeName))
 		{
-			_transientModeLibrary[instance->ModeName].ReferenceCount++;
+			_TemporaryModeLibrary[instance->ModeName].ReferenceCount++;
 		}
 		else
 		{
 			const FMoveModeReference reference = FMoveModeReference(instance);
-			_transientModeLibrary.Add(instance->ModeName, reference);
+			_TemporaryModeLibrary.Add(instance->ModeName, reference);
 		}
-		
-		OutMoveInfos = FTransientMoveInfos(instance);
+
+		OutMoveInfos = FTemporaryMoveInfos(instance);
 		return true;
 	}
-	
+
 	return false;
 }
 
-bool UModularMoverSubsystem::RemoveTransientLibrary(FName ModeName)
+bool UModularMoverSubsystem::RemoveTemporaryLibrary(FName ModeName)
 {
-	if (_transientModeLibrary.Contains(ModeName))
+	if (_TemporaryModeLibrary.Contains(ModeName))
 	{
-		_transientModeLibrary[ModeName].ReferenceCount--;
-		if (_transientModeLibrary[ModeName].ReferenceCount <= 0)
+		_TemporaryModeLibrary[ModeName].ReferenceCount--;
+		if (_TemporaryModeLibrary[ModeName].ReferenceCount <= 0)
 		{
-			_transientModeLibrary.Remove(ModeName);
+			_TemporaryModeLibrary.Remove(ModeName);
 			return true;
 		}
 	}
@@ -173,9 +89,10 @@ bool UModularMoverSubsystem::RemoveTransientLibrary(FName ModeName)
 }
 
 
+
 void UModularMoverSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
-	Super::Initialize(Collection);	
+	Super::Initialize(Collection);
 	_customPhysicMaterial = NewObject<UPhysicalMaterial>();
 	_customPhysicMaterial->bOverrideFrictionCombineMode = true;
 	_customPhysicMaterial->bOverrideRestitutionCombineMode = true;
@@ -202,33 +119,70 @@ TStatId UModularMoverSubsystem::GetStatId() const
 	return GetStatID();
 }
 
-UBaseContingentMove* UModularMoverSubsystem::GetContingentMoveObject(const FName ModeName)
+
+
+UBaseContinuousMove* UModularMoverSubsystem::GetContinuousMoveObject(const FName ModeName)
 {
 	if (!_contigentModeLibrary.Contains(ModeName))
 		return {};
-	return static_cast<UBaseContingentMove*>(_contigentModeLibrary[ModeName].MovementModeInstance.Get());
+	return static_cast<UBaseContinuousMove*>(_contigentModeLibrary[ModeName].MovementModeInstance.Get());
 }
 
-UBaseTransientMove* UModularMoverSubsystem::GetTransientMoveObject(const FName ModeName)
+UBaseTemporaryMove* UModularMoverSubsystem::GetTemporaryMoveObject(const FName ModeName)
 {
-	if (!_transientModeLibrary.Contains(ModeName))
+	if (!_TemporaryModeLibrary.Contains(ModeName))
 		return {};
-	return static_cast<UBaseTransientMove*>(_transientModeLibrary[ModeName].MovementModeInstance.Get());
+	return static_cast<UBaseTemporaryMove*>(_TemporaryModeLibrary[ModeName].MovementModeInstance.Get());
 }
 
 void UModularMoverSubsystem::AddTrackedSurface(const FHitResult& hit)
 {
-	if(!hit.HasValidHitObjectHandle())
+	if (!hit.bBlockingHit && !hit.bStartPenetrating)
 		return;
-	if(_trackedSurfaces.Contains(hit.Component))
+	if (_trackedSurfaces.Contains(hit.Component))
 		return;
-	_trackedSurfaces.Add(hit.Component, FSurfaceMobility(hit));
+	_trackedSurfaces.Add(hit.Component, FSurfaceVelocity(hit));
 	hit.Component->OnComponentDeactivated.AddDynamic(this, &UModularMoverSubsystem::RemoveTrackedComponent);
 }
 
+
+
+UPhysicalMaterial* UModularMoverSubsystem::GetStdPhysicMaterial() const
+{
+	return _customPhysicMaterial;
+}
+
+FSurfaceVelocity UModularMoverSubsystem::GetSurfaceVelocity(const TWeakObjectPtr<UPrimitiveComponent> target) const
+{
+	return _trackedSurfaces.Contains(target) ? _trackedSurfaces[target] : FSurfaceVelocity();
+}
+
+FSurfaceVelocity UModularMoverSubsystem::GetSurfaceVelocity(const FSurface surface) const
+{
+	return _trackedSurfaces.Contains(surface.HitResult.Component) ? _trackedSurfaces[surface.HitResult.Component] : FSurfaceVelocity();
+}
+
+TArray<FSurfaceVelocity> UModularMoverSubsystem::GetSurfaceVelocities(const TArray<TWeakObjectPtr<UPrimitiveComponent>>& targets) const
+{
+	TArray<FSurfaceVelocity> surfMobs;
+	for (const auto t : targets)
+		surfMobs.Add(GetSurfaceVelocity(t));
+	return surfMobs;
+}
+
+TArray<FSurfaceVelocity> UModularMoverSubsystem::GetSurfaceVelocities(const TArray<FSurface>& surfaces) const
+{
+	TArray<FSurfaceVelocity> surfMobs;
+	for (const auto t : surfaces)
+		surfMobs.Add(GetSurfaceVelocity(t));
+	return surfMobs;
+}
+
+
+
 void UModularMoverSubsystem::UpdateTrackedSurface(const float& deltaTime)
 {
-	for(auto SurfaceMob: _trackedSurfaces)
+	for (auto SurfaceMob : _trackedSurfaces)
 	{
 		_trackedSurfaces[SurfaceMob.Key].UpdateTracking(deltaTime);
 	}
@@ -236,12 +190,12 @@ void UModularMoverSubsystem::UpdateTrackedSurface(const float& deltaTime)
 
 void UModularMoverSubsystem::RemoveTrackedComponent(UActorComponent* Component)
 {
-	if(!Component)
+	if (!Component)
 		return;
 	const UPrimitiveComponent* asPrimitive = Cast<UPrimitiveComponent>(Component);
-	if(!asPrimitive)
+	if (!asPrimitive)
 		return;
-	if(!_trackedSurfaces.Contains(asPrimitive))
+	if (!_trackedSurfaces.Contains(asPrimitive))
 		return;
 	_trackedSurfaces.Remove(asPrimitive);
 }

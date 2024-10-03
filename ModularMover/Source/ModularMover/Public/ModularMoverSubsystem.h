@@ -9,13 +9,8 @@
 #include "Subsystems/WorldSubsystem.h"
 #include "ModularMoverSubsystem.generated.h"
 
-class UModularMoverComponent;
-
-#define MOVER_CHUNK_SIZE 1000.0f
-
-
 /**
- * 
+ * Modular Mover SubSystem keeping reference of movement mode instances.
  */
 UCLASS()
 class MODULARMOVER_API UModularMoverSubsystem : public UTickableWorldSubsystem
@@ -23,81 +18,66 @@ class MODULARMOVER_API UModularMoverSubsystem : public UTickableWorldSubsystem
 	GENERATED_BODY()
 
 private:
-	UPROPERTY()
-	TArray<UModularMoverComponent*> _registeredMovers;
-
-	UPROPERTY()
-	TMap<FChunkAreaID, FMoverAreaChunk> _areaChunks;
 
 	UPROPERTY()
 	TMap<FName, FMoveModeReference> _contigentModeLibrary;
 
 	UPROPERTY()
-	TMap<FName, FMoveModeReference> _transientModeLibrary;
+	TMap<FName, FMoveModeReference> _TemporaryModeLibrary;
 
 	UPROPERTY()
-	TMap<TWeakObjectPtr<UPrimitiveComponent>, FSurfaceMobility> _trackedSurfaces;
+	TMap<TWeakObjectPtr<UPrimitiveComponent>, FSurfaceVelocity> _trackedSurfaces;
 
 	UPROPERTY()
 	UPhysicalMaterial* _customPhysicMaterial = nullptr;
 
 public:
-	void RegisterComponent(UModularMoverComponent* mover);
 
-	void UnRegisterComponent(UModularMoverComponent* mover);
+	// Try Create/Add a continuous move class.
+	bool AddContinuousLibrary(FContinuousMoveInfos& OutMoveInfos, TSubclassOf<UBaseContinuousMove> ModeClass = nullptr);
 
-	void UpdateChunk(UModularMoverComponent* mover, FMoverCheckRequest Request);
+	// Try remove a continuous move class.
+	bool RemoveContinuousLibrary(FName ModeName);
 
-	bool AddContingentLibrary(FContingentMoveInfos& OutMoveInfos, TSubclassOf<UBaseContingentMove> ModeClass = nullptr);
+	// Try Create/Add a Temporary move class.
+	bool AddTemporaryLibrary(FTemporaryMoveInfos& OutMoveInfos, TSubclassOf<UBaseTemporaryMove> ModeClass = nullptr);
 
-	bool RemoveContingentLibrary(FName ModeName);
+	// Try remove a Temporary move class.
+	bool RemoveTemporaryLibrary(FName ModeName);
 
-	bool AddTransientLibrary(FTransientMoveInfos& OutMoveInfos, TSubclassOf<UBaseTransientMove> ModeClass = nullptr);
-
-	bool RemoveTransientLibrary(FName ModeName);
 
 	void Initialize(FSubsystemCollectionBase& Collection) override;
-
+	
 	void Deinitialize() override;
-
+	
 	void Tick(float DeltaTime) override;
 
 	TStatId GetStatId() const override;
+	
 
-	UBaseContingentMove* GetContingentMoveObject(const FName ModeName);
+	// Get continuous object instance of name.
+	UBaseContinuousMove* GetContinuousMoveObject(const FName ModeName);
 
-	UBaseTransientMove* GetTransientMoveObject(const FName ModeName);
+	// Get temporary object instance of name.
+	UBaseTemporaryMove* GetTemporaryMoveObject(const FName ModeName);
 
+	// Register a surface to be tracked.
 	void AddTrackedSurface(const FHitResult& hit);
 
+	// Get the zero friction, zero bounciness material instance
+	UPhysicalMaterial* GetStdPhysicMaterial() const;
 
-	FORCEINLINE UPhysicalMaterial* GetStdNoFrictionPhysicMaterial() const { return _customPhysicMaterial; }
+	FSurfaceVelocity GetSurfaceVelocity(const TWeakObjectPtr<UPrimitiveComponent> target) const;
 
-	FORCEINLINE FSurfaceMobility GetSurfaceMobility(const TWeakObjectPtr<UPrimitiveComponent> target) const { return _trackedSurfaces.Contains(target) ? _trackedSurfaces[target] : FSurfaceMobility(); }
+	FSurfaceVelocity GetSurfaceVelocity(const FSurface surface) const;
 
-	FORCEINLINE FSurfaceMobility GetSurfaceMobility(const FSurface surface) const
-	{
-		return _trackedSurfaces.Contains(surface.HitResult.Component) ? _trackedSurfaces[surface.HitResult.Component] : FSurfaceMobility();
-	}
+	TArray<FSurfaceVelocity> GetSurfaceVelocities(const TArray<TWeakObjectPtr<UPrimitiveComponent>>& targets) const;
 
-	FORCEINLINE TArray<FSurfaceMobility> GetSurfaceMobilities(const TArray<TWeakObjectPtr<UPrimitiveComponent>>& targets) const
-	{
-		TArray<FSurfaceMobility> surfMobs;
-		for (const auto t : targets)
-			surfMobs.Add(GetSurfaceMobility(t));
-		return surfMobs;
-	}
-
-	FORCEINLINE TArray<FSurfaceMobility> GetSurfaceMobilities(const TArray<FSurface>& surfaces) const
-	{
-		TArray<FSurfaceMobility> surfMobs;
-		for (const auto t : surfaces)
-			surfMobs.Add(GetSurfaceMobility(t));
-		return surfMobs;
-	}
+	TArray<FSurfaceVelocity> GetSurfaceVelocities(const TArray<FSurface>& surfaces) const;
 
 private:
-	void UpdateTrackedSurface(const float& deltaTime);\
+	
+	void UpdateTrackedSurface(const float& deltaTime);
 
 	void RemoveTrackedComponent(UActorComponent* Component);
 };

@@ -52,20 +52,20 @@ enum class ECollisionShapeNature: uint8
 
 class UModularMoverComponent;
 class UBaseMoverMovementMode;
-class UBaseContingentMove;
-class UBaseTransientMove;
+class UBaseContinuousMove;
+class UBaseTemporaryMove;
 
 USTRUCT(BlueprintType)
-struct FTransientMovePhases
+struct FTemporaryMovePhases
 {
 	GENERATED_BODY()
 
 public:
-	FORCEINLINE FTransientMovePhases()
+	FORCEINLINE FTemporaryMovePhases()
 	{
 	}
 
-	FORCEINLINE FTransientMovePhases(FName name, float duration)
+	FORCEINLINE FTemporaryMovePhases(FName name, float duration)
 	{
 	}
 
@@ -102,66 +102,54 @@ public:
 	int ReferenceCount = 0;
 };
 
+
 USTRUCT(BlueprintType)
-struct FChunkAreaID
+struct FMoverHitResult
 {
 	GENERATED_BODY()
 
-public:
-	FORCEINLINE FChunkAreaID()
-	{
-	}
-
-	FORCEINLINE FChunkAreaID(int x, int y, int z)
-	{
-		X = x;
-		Y = y;
-		Z = z;
-	}
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="MoverChunk")
-	int X = 0;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="MoverChunk")
-	int Y = 0;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="MoverChunk")
-	int Z = 0;
-
-	FORCEINLINE bool Equals(const FChunkAreaID& other) const { return other.X == X && other.Y == Y && other.Z == Z; }
-
-	FORCEINLINE bool operator==(const FChunkAreaID& other) const { return Equals(other); }
-
-	FORCEINLINE bool operator!=(const FChunkAreaID& other) const { return !Equals(other); }
-};
-
-
-FORCEINLINE uint32 GetTypeHash(const FChunkAreaID& ChunkAreaID)
-{
-	uint32 Hash = FCrc::MemCrc32(&ChunkAreaID, sizeof(FChunkAreaID));
-	return Hash;
-}
-
-
-USTRUCT(BlueprintType)
-struct FMoverAreaChunk
-{
-	GENERATED_BODY()
-
-public:
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="MoverChunk")
-	TArray<UModularMoverComponent*> Movers;
-};
-
-
-USTRUCT(BlueprintType)
-struct FSurfaceMobility
-{
-	GENERATED_BODY()
-
-public:
-
-	FSurfaceMobility();
+	FMoverHitResult();
 	
-	FSurfaceMobility(const FHitResult& hit);
+	FMoverHitResult(FHitResult hit, FName owner, FCollisionShape shape);
+	
+	//The HitResult
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Hit")
+	FHitResult Hit = FHitResult();
+	
+	//The name of the movement "Owning" this Hit
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Hit")
+	FName OwningMovement = "";
+
+	FCollisionShape Shape;
+};
+
+USTRUCT(BlueprintType)
+struct FDebugItem
+{
+	GENERATED_BODY()
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Default")
+	FLinearColor Color = FColor::White;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Default")
+	float Radius = 10;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Default")
+	float Thickness = 1;
+	
+};
+
+// Linear and angular Velocity of a surface.
+USTRUCT(BlueprintType)
+struct FSurfaceVelocity
+{
+	GENERATED_BODY()
+
+public:
+
+	FSurfaceVelocity();
+	
+	FSurfaceVelocity(const FHitResult& hit);
 	
 	// Update the tacking of the component.
 	bool UpdateTracking(float deltaTime);
@@ -271,14 +259,14 @@ public:
 
 
 USTRUCT(BlueprintType)
-struct FContingentMoveInfos
+struct FContinuousMoveInfos
 {
 	GENERATED_BODY()
 
 public:
-	FContingentMoveInfos();
+	FContinuousMoveInfos();
 
-	FContingentMoveInfos(UBaseContingentMove* move);
+	FContinuousMoveInfos(UBaseContinuousMove* move);
 
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Default")
@@ -290,24 +278,24 @@ public:
 
 
 USTRUCT(BlueprintType)
-struct FTransientMoveInfos
+struct FTemporaryMoveInfos
 {
 	GENERATED_BODY()
 
 public:
-	FTransientMoveInfos();
+	FTemporaryMoveInfos();
 
-	FTransientMoveInfos(UBaseTransientMove* move);
+	FTemporaryMoveInfos(UBaseTemporaryMove* move);
 
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Default")
 	FCommonMoveInfos BaseInfos;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Default")
-	TArray<FTransientMovePhases> ModeDuration = TArray<FTransientMovePhases>{FTransientMovePhases("Default", 0.1)};
+	TArray<FTemporaryMovePhases> ModeDuration = TArray<FTemporaryMovePhases>{FTemporaryMovePhases("Default", 0.1)};
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Default")
-	FTransientMovePhases CurrentPhase = FTransientMovePhases();
+	FTemporaryMovePhases CurrentPhase = FTemporaryMovePhases();
 
 	FORCEINLINE float TotalDuration() const
 	{
@@ -322,7 +310,7 @@ public:
 	FORCEINLINE void UpdatePhase()
 	{
 		float collectiveTime = 0;
-		CurrentPhase = FTransientMovePhases();
+		CurrentPhase = FTemporaryMovePhases();
 
 		for (int i = 0; i < ModeDuration.Num(); i++)
 		{
@@ -350,14 +338,6 @@ public:
 	// The Snap vector. instantaneously displace the body teleporting physic. can cause clipping, use with care 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
 	FVector SnapDisplacement = FVector(0);
-
-	// The terminal velocity (cm/s)
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
-	float TerminalVelocity = 0;
-
-	// The Deceleration speed (cm/s)
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
-	float DecelerationSpeed = 100;
 };
 
 USTRUCT(BlueprintType)
@@ -400,8 +380,6 @@ public:
 	{
 		Linear.Acceleration *= amount;
 		Linear.SnapDisplacement *= amount;
-		Linear.DecelerationSpeed *= amount;
-		Linear.TerminalVelocity *= amount;
 		Angular.LookOrientation *= amount;
 		FVector axis;
 		float angle;
@@ -415,8 +393,6 @@ public:
 		FMechanicProperties result;
 		result.Linear.Acceleration = this->Linear.Acceleration + other.Linear.Acceleration;
 		result.Linear.SnapDisplacement = this->Linear.SnapDisplacement + other.Linear.SnapDisplacement;
-		result.Linear.DecelerationSpeed = this->Linear.DecelerationSpeed + other.Linear.DecelerationSpeed;
-		result.Linear.TerminalVelocity = this->Linear.TerminalVelocity + other.Linear.TerminalVelocity;
 
 		result.Angular.LookOrientation = this->Angular.LookOrientation + other.Angular.LookOrientation;
 		result.Angular.OrientationDiff = this->Angular.OrientationDiff * other.Angular.OrientationDiff;
@@ -447,48 +423,6 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
 	FVector Gravity = FVector(0, 0, -1);
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
-	TArray<FSurface> Surfaces;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
-	ECollisionShapeNature ShapeType = ECollisionShapeNature::Line;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
-	FVector ShapeExtends = FVector(0);
-
-
-	FORCEINLINE FCollisionShape GetShape() const
-	{
-		switch (ShapeType)
-		{
-			case ECollisionShapeNature::Line: break;
-			case ECollisionShapeNature::Box: return FCollisionShape::MakeBox(ShapeExtends);
-			case ECollisionShapeNature::Sphere: return FCollisionShape::MakeSphere(ShapeExtends.X);
-			case ECollisionShapeNature::Capsule: return FCollisionShape::MakeCapsule(ShapeExtends);
-		}
-		return FCollisionShape();
-	}
-
-	FORCEINLINE void SetShape(FCollisionShape Shape)
-	{
-		ShapeExtends = Shape.GetExtent();
-		switch (Shape.ShapeType)
-		{
-			case ECollisionShape::Line: ShapeType = ECollisionShapeNature::Line;
-				break;
-			case ECollisionShape::Box: ShapeType = ECollisionShapeNature::Box;
-				break;
-			case ECollisionShape::Sphere:
-				{
-					ShapeType = ECollisionShapeNature::Sphere;
-					ShapeExtends.X = Shape.GetSphereRadius();
-				}
-				break;
-			case ECollisionShape::Capsule: ShapeType = ECollisionShapeNature::Capsule;
-				break;
-		}
-	}
 };
 
 USTRUCT(BlueprintType)
@@ -527,7 +461,7 @@ public:
 	FName ModeName = NAME_None;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
-	TArray<FSurface> Surfaces;
+	FSurface Surface;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
 	FVector ScanSurfaceVector = FVector(0);
@@ -543,31 +477,39 @@ public:
 };
 
 USTRUCT(BlueprintType)
-struct FMoverCheckRequest
+struct FMoverRequest
 {
 	GENERATED_BODY()
 
 public:
-	FORCEINLINE FMoverCheckRequest()
+	FORCEINLINE FMoverRequest()
 	{
 	}
 
-	FORCEINLINE FMoverCheckRequest(FBodyInstance* moverBody, const FMomentum& momentum, FMoverInputPool inputs)
+	FORCEINLINE FMoverRequest(FBodyInstance* moverBody, const FMomentum& momentum, FMoverInputPool inputs, float delta, FVector scanDir)
 	{
 		MoverBody = moverBody;
 		Momentum = momentum;
+		ScanDirection = scanDir;
+		DeltaTime = delta;
 		InputPool.InputMap.Empty();
 		for (auto input : inputs.InputMap)
 			InputPool.InputMap.Add(input);
 	}
 
-	FBodyInstance* MoverBody;
+	FBodyInstance* MoverBody = nullptr;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
-	FMomentum Momentum;
+	FMomentum Momentum = FMomentum();
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
-	FMoverInputPool InputPool;
+	FMoverInputPool InputPool = FMoverInputPool();
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
+	FVector ScanDirection = FVector(0);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
+	float DeltaTime = 0;
 };
 
 
@@ -601,11 +543,11 @@ public:
 
 	//Get surface combined surface average linear velocity
 	UFUNCTION(BlueprintPure, Category = "StructExtension|Inputs", meta=(BlueprintThreadSafe))
-	static FVector GetAverageSurfaceVelocityAt(const TArray<FSurfaceMobility>& SurfacesMobilities, const FVector point, const float deltaTime, FVector Normal = FVector(0));
+	static FVector GetAverageSurfaceVelocityAt(const TArray<FSurfaceVelocity>& SurfacesMobilities, const FVector point, const float deltaTime, FVector Normal = FVector(0));
 
 	//Get surface combined surface average angular velocity. (Deg/s)
 	UFUNCTION(BlueprintPure, Category = "StructExtension|Inputs", meta=(BlueprintThreadSafe))
-	static FVector GetAverageSurfaceAngularSpeed(const TArray<FSurfaceMobility>& SurfacesMobilities);
+	static FVector GetAverageSurfaceAngularSpeed(const TArray<FSurfaceVelocity>& SurfacesMobilities);
 
 	//Get surface highest physic properties (X) friction, (Y) bounciness.
 	UFUNCTION(BlueprintPure, Category = "StructExtension|Inputs", meta=(BlueprintThreadSafe))
@@ -640,14 +582,14 @@ public:
 };
 
 
-// The base of all contingent movement modes
+// The base of all Continuous movement modes
 UCLASS(BlueprintType, Blueprintable, ClassGroup = "Mover | Movement Modes", abstract)
-class MODULARMOVER_API UBaseContingentMove : public UBaseMoverMovementMode
+class MODULARMOVER_API UBaseContinuousMove : public UBaseMoverMovementMode
 {
 	GENERATED_BODY()
 
 public:
-	UBaseContingentMove();
+	UBaseContinuousMove();
 
 	// The direction where to scan for surfaces
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Default")
@@ -659,70 +601,70 @@ public:
 
 
 	UFUNCTION(BlueprintNativeEvent, Category="Modular Mover | Mover Movement Mode", meta = (BlueprintThreadSafe, AdvancedDisplay = 5))
-	bool CheckContingentMovement(UActorComponent* MoverActorComponent, UPARAM(ref) const TArray<FExpandedHitResult>& Surfaces, UPARAM(ref) FContingentMoveInfos& MoveInfos,
+	bool CheckContinuousMovement(UActorComponent* MoverActorComponent, UPARAM(ref) const TArray<FMoverHitResult>& Surfaces, UPARAM(ref) FContinuousMoveInfos& MoveInfos,
 	                             const FMomentum& CurrentMomentum,
 	                             const FVector MoveInput,
-	                             const FMoverInputPool Inputs, UPARAM(ref) const TArray<FContingentMoveInfos>& ContingentMoves,
-	                             UPARAM(ref) const TArray<FTransientMoveInfos>& TransientMoves, UPARAM(ref) TMap<FName, FVector>& CustomProperties, UPARAM(ref) int& SurfacesFlag) const;
+	                             const FMoverInputPool Inputs, UPARAM(ref) const TArray<FContinuousMoveInfos>& ContinuousMoves,
+	                             UPARAM(ref) const TArray<FTemporaryMoveInfos>& TemporaryMoves, UPARAM(ref) TMap<FName, FVector>& CustomProperties, UPARAM(ref) int& SurfacesFlag) const;
 
 	UFUNCTION(BlueprintCallable, Category="Modular Mover | Mover Movement Mode", meta = (BlueprintThreadSafe, AdvancedDisplay = 5))
-	virtual bool CheckContingentMovement_Implementation(UActorComponent* MoverActorComponent,UPARAM(ref) const TArray<FExpandedHitResult>& Surfaces,
-	                                                    UPARAM(ref) FContingentMoveInfos& MoveInfos, const FMomentum& CurrentMomentum,
+	virtual bool CheckContinuousMovement_Implementation(UActorComponent* MoverActorComponent,UPARAM(ref) const TArray<FMoverHitResult>& Surfaces,
+	                                                    UPARAM(ref) FContinuousMoveInfos& MoveInfos, const FMomentum& CurrentMomentum,
 	                                                    const FVector MoveInput,
-	                                                    const FMoverInputPool Inputs,UPARAM(ref) const TArray<FContingentMoveInfos>& ContingentMoves,
-	                                                    UPARAM(ref) const TArray<FTransientMoveInfos>& TransientMoves, UPARAM(ref) TMap<FName, FVector>& CustomProperties,
+	                                                    const FMoverInputPool Inputs,UPARAM(ref) const TArray<FContinuousMoveInfos>& ContinuousMoves,
+	                                                    UPARAM(ref) const TArray<FTemporaryMoveInfos>& TemporaryMoves, UPARAM(ref) TMap<FName, FVector>& CustomProperties,
 	                                                    UPARAM(ref) int& SurfacesFlag) const;
 
 
 	UFUNCTION(BlueprintNativeEvent, Category="Modular Mover | Mover Movement Mode", meta = (BlueprintThreadSafe))
-	FMechanicProperties ProcessContingentMovement(UActorComponent* MoverActorComponent,UPARAM(ref) FContingentMoveInfos& MoveInfos, const FMomentum& CurrentMomentum,
+	FMechanicProperties ProcessContinuousMovement(UActorComponent* MoverActorComponent,UPARAM(ref) FContinuousMoveInfos& MoveInfos, const FMomentum& CurrentMomentum,
 	                                              const FVector MoveInput, const FMoverInputPool Inputs, const FTransform SurfacesMovement,
 	                                              const float DeltaTime) const;
 
 	UFUNCTION(BlueprintCallable, Category="Modular Mover | Mover Movement Mode", meta = (BlueprintThreadSafe))
-	virtual FMechanicProperties ProcessContingentMovement_Implementation(UActorComponent* MoverActorComponent,UPARAM(ref) FContingentMoveInfos& MoveInfos,
+	virtual FMechanicProperties ProcessContinuousMovement_Implementation(UActorComponent* MoverActorComponent,UPARAM(ref) FContinuousMoveInfos& MoveInfos,
 	                                                                     const FMomentum& CurrentMomentum, const FVector MoveInput,
 	                                                                     const FMoverInputPool Inputs, const FTransform SurfacesMovement, const float DeltaTime) const;
 };
 
 
-// The base of all transient movement modes
+// The base of all Temporary movement modes
 UCLASS(BlueprintType, Blueprintable, ClassGroup = "Mover | Movement Modes", abstract)
-class MODULARMOVER_API UBaseTransientMove : public UBaseMoverMovementMode
+class MODULARMOVER_API UBaseTemporaryMove : public UBaseMoverMovementMode
 {
 	GENERATED_BODY()
 
 public:
-	UBaseTransientMove();
+	UBaseTemporaryMove();
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Timing")
-	TArray<FTransientMovePhases> ModeDuration = TArray<FTransientMovePhases>{FTransientMovePhases("Default", 0.1)};
+	TArray<FTemporaryMovePhases> ModeDuration = TArray<FTemporaryMovePhases>{FTemporaryMovePhases("Default", 0.1)};
 
 
 	UFUNCTION(BlueprintNativeEvent, Category="Modular Mover | Mover Movement Mode", meta = (BlueprintThreadSafe, AdvancedDisplay = 5))
-	bool CheckTransientMovement(UActorComponent* MoverActorComponent,UPARAM(ref) const TArray<FExpandedHitResult>& Surfaces, UPARAM(ref) FTransientMoveInfos& MoveInfos,
+	bool CheckTemporaryMovement(UActorComponent* MoverActorComponent,UPARAM(ref) const TArray<FExpandedHitResult>& Surfaces, UPARAM(ref) FTemporaryMoveInfos& MoveInfos,
 	                            const FMomentum& CurrentMomentum, const FVector MoveInput,
-	                            const FMoverInputPool Inputs, UPARAM(ref) const TArray<FContingentMoveInfos>& ContingentMoves,
-	                            UPARAM(ref) const TArray<FTransientMoveInfos>& TransientMoves, UPARAM(ref) TMap<FName, FVector>& CustomProperties) const;
+	                            const FMoverInputPool Inputs, UPARAM(ref) const TArray<FContinuousMoveInfos>& ContinuousMoves,
+	                            UPARAM(ref) const TArray<FTemporaryMoveInfos>& TemporaryMoves, UPARAM(ref) TMap<FName, FVector>& CustomProperties) const;
 
 	UFUNCTION(BlueprintCallable, Category="Modular Mover | Mover Movement Mode", meta = (BlueprintThreadSafe, AdvancedDisplay = 5))
-	virtual bool CheckTransientMovement_Implementation(UActorComponent* MoverActorComponent,UPARAM(ref) const TArray<FExpandedHitResult>& Surfaces,
-	                                                   UPARAM(ref) FTransientMoveInfos& MoveInfos, const FMomentum& CurrentMomentum,
+	virtual bool CheckTemporaryMovement_Implementation(UActorComponent* MoverActorComponent,UPARAM(ref) const TArray<FExpandedHitResult>& Surfaces,
+	                                                   UPARAM(ref) FTemporaryMoveInfos& MoveInfos, const FMomentum& CurrentMomentum,
 	                                                   const FVector MoveInput,
-	                                                   const FMoverInputPool Inputs, UPARAM(ref) const TArray<FContingentMoveInfos>& ContingentMoves,
-	                                                   UPARAM(ref) const TArray<FTransientMoveInfos>& TransientMoves, UPARAM(ref) TMap<FName, FVector>& CustomProperties) const;
+	                                                   const FMoverInputPool Inputs, UPARAM(ref) const TArray<FContinuousMoveInfos>& ContinuousMoves,
+	                                                   UPARAM(ref) const TArray<FTemporaryMoveInfos>& TemporaryMoves, UPARAM(ref) TMap<FName, FVector>& CustomProperties) const;
 
 
 	UFUNCTION(BlueprintNativeEvent, Category="Modular Mover | Mover Movement Mode", meta = (BlueprintThreadSafe))
-	FMechanicProperties ProcessTransientMovement(UActorComponent* MoverActorComponent, const FMechanicProperties ContingentMove, UPARAM(ref) FTransientMoveInfos& MoveInfos,
+	FMechanicProperties ProcessTemporaryMovement(UActorComponent* MoverActorComponent, const FMechanicProperties ContinuousMove, UPARAM(ref) FTemporaryMoveInfos& MoveInfos,
 	                                             const FMomentum& CurrentMomentum,
 	                                             const FVector MoveInput,
 	                                             const FMoverInputPool Inputs, const FTransform SurfacesMovement,
 	                                             const float DeltaTime) const;
 
 	UFUNCTION(BlueprintCallable, Category="Modular Mover | Mover Movement Mode", meta = (BlueprintThreadSafe))
-	virtual FMechanicProperties ProcessTransientMovement_Implementation(UActorComponent* MoverActorComponent, const FMechanicProperties ContingentMove,
-	                                                                    UPARAM(ref) FTransientMoveInfos& MoveInfos,
+	virtual FMechanicProperties ProcessTemporaryMovement_Implementation(UActorComponent* MoverActorComponent, const FMechanicProperties ContinuousMove,
+	                                                                    UPARAM(ref) FTemporaryMoveInfos& MoveInfos,
 	                                                                    const FMomentum& CurrentMomentum,
 	                                                                    const FVector MoveInput,
 	                                                                    const FMoverInputPool Inputs, const FTransform SurfacesMovement, const float DeltaTime) const;

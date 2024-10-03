@@ -17,24 +17,28 @@ UStdContinuousFreeFall::UStdContinuousFreeFall()
 		this->ScanSurfaceVector = FVector(0, 0, -5000);
 }
 
-bool UStdContinuousFreeFall::CheckContingentMovement_Implementation(UActorComponent* MoverActorComponent, const TArray<FExpandedHitResult>& Surfaces, FContingentMoveInfos& MoveInfos,
+bool UStdContinuousFreeFall::CheckContinuousMovement_Implementation(UActorComponent* MoverActorComponent, const TArray<FMoverHitResult>& Surfaces, FContinuousMoveInfos& MoveInfos,
                                                                     const FMomentum& CurrentMomentum,
-                                                                    const FVector MoveInput, const FMoverInputPool Inputs, const TArray<FContingentMoveInfos>& ContingentMoves,
-                                                                    const TArray<FTransientMoveInfos>& TransientMoves,
+                                                                    const FVector MoveInput, const FMoverInputPool Inputs, const TArray<FContinuousMoveInfos>& ContinuousMoves,
+                                                                    const TArray<FTemporaryMoveInfos>& TemporaryMoves,
                                                                     TMap<FName, FVector>& CustomProperties, int& SurfacesFlag) const
 {
 	return true;
 }
 
-FMechanicProperties UStdContinuousFreeFall::ProcessContingentMovement_Implementation(UActorComponent* MoverActorComponent, FContingentMoveInfos& MoveInfos, const FMomentum& CurrentMomentum,
+FMechanicProperties UStdContinuousFreeFall::ProcessContinuousMovement_Implementation(UActorComponent* MoverActorComponent, FContinuousMoveInfos& MoveInfos, const FMomentum& CurrentMomentum,
                                                                                      const FVector MoveInput,
                                                                                      const FMoverInputPool Inputs, const FTransform SurfacesMovement, const float DeltaTime) const
 {
+	const FVector fallingVelocity = CurrentMomentum.LinearVelocity.ProjectOnToNormal(GravityVector.GetSafeNormal());
+	const FVector steeringVelocity = FVector::VectorPlaneProject(CurrentMomentum.LinearVelocity, GravityVector.GetSafeNormal());
+	const FVector steeringVector = UVectorToolbox::Project3DVector(MoveInput, GravityVector) * PlanarMoveVelocity;
+
+
 	FMechanicProperties result;
 	result.Gravity = GravityVector;
-	result.Linear.Acceleration = GravityVector + UVectorToolbox::Project3DVector(MoveInput, GravityVector) * PlanarMoveVelocity;
-	result.Linear.DecelerationSpeed = 0;
-	result.Linear.TerminalVelocity = TerminalVelocity;
+	result.Linear.Acceleration = (fallingVelocity.Length() < TerminalVelocity ? fallingVelocity + GravityVector * DeltaTime : fallingVelocity)
+		+ ((steeringVelocity | steeringVector) > 0 ? ( steeringVelocity) : steeringVelocity + steeringVector * DeltaTime);
 	result.Angular.LookOrientation = UVectorToolbox::Project3DVector(MoveInput, GravityVector).GetSafeNormal() * TurnSpeed;
 	return result;
 }

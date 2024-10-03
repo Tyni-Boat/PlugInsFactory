@@ -15,27 +15,14 @@
 #include "ModularMoverComponent.generated.h"
 
 
-#define OVERLAP_INFLATION 10
-#define DRAG_To_DAMPING 2.4026
-
-
 class UModularMoverComponent;
 
+DECLARE_DYNAMIC_MULTICAST_SPARSE_DELEGATE_TwoParams(FOnSurfaceCheckSignature, UModularMoverComponent, OnSurfaceCheck, FMomentum, Momentum, TArray<FMoverHitResult>&, HitResults);
+DECLARE_DYNAMIC_MULTICAST_SPARSE_DELEGATE_TwoParams(FOnContinuousChangedSignature, UModularMoverComponent, OnContinuousMoveChanged, FMoverModeSelection, Old, FMoverModeSelection, New);
+DECLARE_DYNAMIC_MULTICAST_SPARSE_DELEGATE_TwoParams(FOnTemporaryChangedSignature, UModularMoverComponent, OnTemporaryMoveChanged, FMoverModeSelection, Old, FMoverModeSelection, New);
 
-DECLARE_DYNAMIC_MULTICAST_SPARSE_DELEGATE_TwoParams(FOnMoveSignature, UModularMoverComponent, OnComponentMoved, UModularMoverComponent*, Component, FMoverCheckRequest, Request);
 
-DECLARE_DYNAMIC_MULTICAST_SPARSE_DELEGATE_ThreeParams(FOnSurfaceCheckSignature, UModularMoverComponent, OnSurfaceCheck, UModularMoverComponent*, Component, FMomentum, Momentum,
-                                                      TArray<FExpandedHitResult>&, HitsResults);
-
-DECLARE_DYNAMIC_MULTICAST_SPARSE_DELEGATE_ThreeParams(FOnContingentChangedSignature, UModularMoverComponent, OnContingentMoveChanged, UModularMoverComponent*, Component, FMoverModeSelection,
-                                                      OldMove,
-                                                      FMoverModeSelection, NewMove);
-
-DECLARE_DYNAMIC_MULTICAST_SPARSE_DELEGATE_ThreeParams(FOnTransientChangedSignature, UModularMoverComponent, OnTransientMoveChanged, UModularMoverComponent*, Component, FMoverModeSelection,
-                                                      OldMove,
-                                                      FMoverModeSelection, NewMove);
-
-DECLARE_DELEGATE_TwoParams(FOnMoveDelegate, UModularMoverComponent*, FMoverCheckRequest)
+#define COMPONENT_MAIN_INFLATION 1
 
 
 UCLASS(ClassGroup = "Controllers",
@@ -57,18 +44,21 @@ protected:
 
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
-	// Register the component to it's subsystem.
-	bool InitialRegistration();
+	// Initialize component.
+	bool Initialization();
 
-	// Unregister the component to it's subsystem.
-	bool FinalUnregistration();
+	// DeInitialize component.
+	bool DeInitialization();
 
 	// The reference to the current subsystem.
 	UPROPERTY()
 	TSoftObjectPtr<UModularMoverSubsystem> _subSystem = nullptr;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Debug")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Debug")
 	EDebugMode DebugMode = EDebugMode::None;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Debug")
+	TMap<FName,FDebugItem> PerNameDebugItem;
 
 public:
 	// Called every frame
@@ -76,9 +66,14 @@ public:
 
 	virtual void AsyncPhysicsTickComponent(float DeltaTime, float SimTime) override;
 
-	// Evaluate continuous and instantaneous movement modes as well as Traversals
-	void EvaluateMovementOnSurfaces(const FMoverCheckRequest Request, TArray<FExpandedHitResult> SurfacesHits);
+	// Check movement diff and trigger on move events
+	void BeginStateUpdate(FBodyInstance* Body, const FCollisionShape Shape, const FMomentum& Momentum, const FMoverInputPool InputPool, float DeltaTime);
 
+	// Evaluate continuous and instantaneous movement modes as well as Traversals
+	void CompleteStateUpdate(const FMoverRequest Request, TArray<FMoverHitResult> MoverHits);
+
+	// Move component from selected movement modes.
+	void UpdateMovement(const FBodyInstance* Body, const FMomentum& Momentum, const float DeltaTime);
 
 #pragma region Inputs
 public:
@@ -135,40 +130,13 @@ protected:
 #pragma region Physic
 
 public:
-	// Called when ever the location of the controller changed.
-	FOnMoveDelegate OnComponentMovedInternal;
-
-	// Called when ever the location of the controller changed.
-	UPROPERTY(BlueprintAssignable, Category="Events|Physic")
-	FOnMoveSignature OnComponentMoved;
-
 	// Called when a scan surface is done.
 	UPROPERTY(BlueprintAssignable, Category="Events|Physic")
 	FOnSurfaceCheckSignature OnSurfaceCheck;
 
-	// The rotation offset. helpful when using rotated skeletal mesh components 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Physic|Spacial")
-	FRotator RotationOffset;
-
-	// The current area chunk
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Physic|Spacial")
-	FChunkAreaID CurrentAreaChunk;
-
-	// The distance tolerance to trigger the component moved event
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Physic|Spacial")
-	float MoveTriggerTolerance = 0.1;
-
-	// The angular tolerance to trigger the component moved event. (degrees)
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Physic|Spacial")
-	float RotateTriggerTolerance = 15;
-
 	// Disable collision with the world and other characters
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, category = "Physic|Collisions")
 	bool bDisableCollision = false;
-
-	// Use asynchronous surface detection
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, category = "Physic|Collisions")
-	bool bUseAsyncSurfaceDetection = false;
 
 	// The list of components to ignore when moving.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, category = "Physic|Collisions")
@@ -178,81 +146,44 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, category = "Physic|Collisions")
 	bool bUseComplexCollision = false;
 
-	// The minimum depth when detecting depth surface
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, category = "Physic|Collisions")
-	float MinDepthSurface = 10;
-
-	// The component mass
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, category = "Physic|RigidBody")
-	float Mass = 80;	
-
 protected:
-	FMomentum _currentMomentum;
 	FVector _lastLocation;
 	FVector _lastLocation_trigger;
 	FQuat _lastRotation;
 	FQuat _lastRotation_trigger;
 	FTraceDelegate _onMainSurfaceChk;
-	TMap<FTraceHandle, FMoverCheckRequest> _chkRequestMap;
+	FTraceDelegate _onOffsetChk;
+	TMap<FTraceHandle, FMoverRequest> _offsetRequestMap;
+	TMap<FTraceHandle, FMoverRequest> _chkRequestMap;
+	TArray<FMoverHitResult> _queryHitsBuffer;
 	FVector _lastGravity = FVector(0, 0, -1);
 	bool _bMoveDisableCollision = false;
-	UPROPERTY()
-	TMap<UPrimitiveComponent*, FTransform> _lastSurfaceTransform;
 
 
-	// Get the current momentum.
+	// Get the current Surface.
 	UFUNCTION(BlueprintPure, Category="Mover|Physic")
-	FORCEINLINE FMomentum GetCurrentMomentum() const { return _currentMomentum; }
-
-	// Get the current Surfaces.
-	UFUNCTION(BlueprintPure, Category="Mover|Physic")
-	FORCEINLINE TArray<FSurface> GetCurrentSurfaces() const
-	{
-		if (ActiveTransientMove.IsValid() && ActiveTransientMove.Surfaces.Num() > 0)
-			return ActiveTransientMove.Surfaces;
-		return ActiveContingentMove.Surfaces;
-	}
+	FSurface GetCurrentSurface() const;
 
 	UFUNCTION(BlueprintPure, Category="Mover|Physic")
 	bool IsIgnoringCollision() const;
 
-	UFUNCTION(BlueprintPure, Category="Mover|Physic")
-	FVector GetCurrentScanSurfaceVector() const;
 
-	UFUNCTION(BlueprintPure, Category="Mover|Physic")
-	float GetCurrentScanSurfaceOffset() const;
+	//
+	void AsyncSweep(UWorld* World, FBodyInstance* Body, const FCollisionShape& Shape, const FVector& ScanVector, const float& DeltaTime, FCollisionQueryParams&
+	                QueryParams,
+	                const FMomentum& Momentum, const FMoverInputPool& Inputs);
 
-	// Get the controller Mass
-	UFUNCTION(BlueprintPure, Category = "Mover|Physic")
-	FORCEINLINE float GetMass() const
-	{
-		return (Mass < 0 && UpdatedPrimitive != nullptr && UpdatedPrimitive->IsSimulatingPhysics()) ? UpdatedPrimitive->GetMass() : FMath::Clamp(Mass, 1, TNumericLimits<double>().Max());
-	}
-
-	// Check movement diff and trigger on move events
-	void EvaluateMovementDiff(FBodyInstance* Body, const FMomentum Momentum, const FMoverInputPool InputPool);
-
-	// Check if a surface transform changed enough to trigger movement eval.
-	bool TrackSurfaceMovementUpdate(const TArray<FSurface>& Surfaces);
-
-	// Run the solver when ever moved
-	void OnMoveCheck(UModularMoverComponent* Mover, FMoverCheckRequest Request);
-
+	//
+	void OffsetSweep(UWorld* World, FBodyInstance* Body, const FCollisionShape& Shape, const FVector ScanOffset, const FVector& ScanVector, const float& DeltaTime,
+	                 FCollisionQueryParams&
+	                 QueryParams, const FMomentum& Momentum, const FMoverInputPool& Inputs);
+	
 	// Called when we've done the surface check trace async
-	void OnMainSurfaceCheckDone(const FTraceHandle& TraceHandle, FTraceDatum& TraceData);
+	void QueryResult(const FTraceHandle& TraceHandle, FTraceDatum& TraceData);
+	
+	// Called when we've done the offset check trace async
+	void OffsetResult(const FTraceHandle& TraceHandle, FTraceDatum& TraceData);
 
-	//Solve overlap problems recursively.
-	void OverlapSolver(int& maxDepth, const FTransform* customTr = nullptr) const;
-
-	// Detect surface overlap hits
-	bool DetectOverlapHits(const FTransform Transform, TArray<FExpandedHitResult>& touchedHits, const FVector scanVector = FVector(0), const uint64 CounterDirectionOffset = 0) const;
-
-	// Detect surface overlap hits async
-	FTraceHandle AsyncDetectOverlapHits(const FTransform Transform, FTraceDelegate* callBack, const FVector scanVector = FVector(0), const uint64 CounterDirectionOffset = 0) const;
-
-	// De-penetrate overlaps
-	void FixOverlapHits(int& maxDepth, const FTransform Transform, const TArray<FExpandedHitResult> touchedHits, std::function<void(FVector)> OnLocationSet = {},
-	                    std::function<void(UPrimitiveComponent*, FVector)> OnPhysicCompHit = {}) const;
 
 	// Calculate Linear velocity. UseReduction subtract the current Linear Velocity from the end result.
 	static FVector ComputeLinearVelocity(const FLinearMechanic AttemptedMovement, const FVector currentLinearVelocity, const FVector SurfacesLinearVelocity, const float deltaTime,
@@ -273,80 +204,80 @@ public:
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadWrite, category = "Movement Modes")
 	TMap<FName, FVector> CustomProperties;
 
-	// The currently active contingent move mode.
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadWrite, category = "Movement Modes|Contingent")
-	FMoverModeSelection ActiveContingentMove;
+	// The currently active Continuous move mode.
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadWrite, category = "Movement Modes|Continuous")
+	FMoverModeSelection ActiveContinuousMove;
 
-	// The currently active Transient move mode.
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadWrite, category = "Movement Modes|Transient")
-	FMoverModeSelection ActiveTransientMove;
+	// The currently active Temporary move mode.
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadWrite, category = "Movement Modes|Temporary")
+	FMoverModeSelection ActiveTemporaryMove;
 
-	// Called when the current contingent move changed
+	// Called when the current Continuous move changed
 	UPROPERTY(BlueprintAssignable, Category="Events|Movement Modes")
-	FOnContingentChangedSignature OnContingentMoveChanged;
+	FOnContinuousChangedSignature OnContinuousMoveChanged;
 
-	// Called when the current transient move changed
+	// Called when the current Temporary move changed
 	UPROPERTY(BlueprintAssignable, Category="Events|Movement Modes")
-	FOnTransientChangedSignature OnTransientMoveChanged;
+	FOnTemporaryChangedSignature OnTemporaryMoveChanged;
 
 protected:
-	TQueue<FVector> _chkContingentQueue;
-	TQueue<FVector> _chkTransientQueue;
+	TQueue<FVector> _chkContinuousQueue;
+	TQueue<FVector> _chkTemporaryQueue;
 
 
-	// Contingents ------------------------------------------------------------------------------------------------------------------------------------------
+	// Continuouss ------------------------------------------------------------------------------------------------------------------------------------------
 public:
-	// The contingent move modes used on this controller by default
-	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, category = "Movement Modes|Contingent")
-	TArray<TSubclassOf<UBaseContingentMove>> ContingentMoveClasses;
+	// The Continuous move modes used on this controller by default
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, category = "Movement Modes|Continuous")
+	TArray<TSubclassOf<UBaseContinuousMove>> ContinuousMoveClasses;
 
-	// The states of each contingent move for this mover
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, category = "Movement Modes|Contingent")
-	TArray<FContingentMoveInfos> ContingentMoveState;
-
-
-	// Add a contingent move mode
-	UFUNCTION(BlueprintCallable, Category="Mover|Movement Modes|Contingent", meta=(NotBlueprintThreadSafe))
-	void AddContingentMoveMode(TSubclassOf<UBaseContingentMove> Class);
-
-	// Remove a contingent move mode
-	UFUNCTION(BlueprintCallable, Category="Mover|Movement Modes|Contingent", meta=(NotBlueprintThreadSafe))
-	void RemoveContingentMoveMode(FName MoveName);
+	// The states of each Continuous move for this mover
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, category = "Movement Modes|Continuous")
+	TArray<FContinuousMoveInfos> ContinuousMoveState;
 
 
-	// Check contingent moves and select active contingent mode.
-	void CheckContingentMoves(const FMoverCheckRequest Request, const TArray<FExpandedHitResult> SurfacesHits);
+	// Add a Continuous move mode
+	UFUNCTION(BlueprintCallable, Category="Mover|Movement Modes|Continuous", meta=(NotBlueprintThreadSafe))
+	void AddContinuousMoveMode(TSubclassOf<UBaseContinuousMove> Class);
+
+	// Remove a Continuous move mode
+	UFUNCTION(BlueprintCallable, Category="Mover|Movement Modes|Continuous", meta=(NotBlueprintThreadSafe))
+	void RemoveContinuousMoveMode(FName MoveName);
 
 
-	// Process and blend actives contingent movements in an async manner (transitions from mode to mode are done at different speeds)
-	FMechanicProperties ProcessContingentMoves(const FMomentum currentMomentum, const FTransform SurfacesMovement, const float DeltaTime);
+	// Check Continuous moves and select active Continuous mode.
+	void CheckContinuousMoves(const FMoverRequest Request, const TArray<FMoverHitResult> SurfacesHits);
 
-	// Transients ------------------------------------------------------------------------------------------------------------------------------------------
+
+	// Process and blend actives Continuous movements in an async manner (transitions from mode to mode are done at different speeds)
+	FMechanicProperties ProcessContinuousMoves(const FMomentum currentMomentum, const FTransform SurfacesMovement, const float DeltaTime);
+
+	// Temporarys ------------------------------------------------------------------------------------------------------------------------------------------
 
 public:
-	// The Transient move modes used on this controller by default
-	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, category = "Movement Modes|Transient")
-	TArray<TSubclassOf<UBaseTransientMove>> TransientMoveClasses;
+	// The Temporary move modes used on this controller by default
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, category = "Movement Modes|Temporary")
+	TArray<TSubclassOf<UBaseTemporaryMove>> TemporaryMoveClasses;
 
-	// The states of each Transient move for this mover
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, category = "Movement Modes|Transient")
-	TArray<FTransientMoveInfos> TransientMoveState;
-
-
-	// Add a Transient move mode
-	UFUNCTION(BlueprintCallable, Category="Mover|Movement Modes|Transient", meta=(NotBlueprintThreadSafe))
-	void AddTransientMoveMode(TSubclassOf<UBaseTransientMove> Class);
-
-	// Remove a Transient move mode
-	UFUNCTION(BlueprintCallable, Category="Mover|Movement Modes|Transient", meta=(NotBlueprintThreadSafe))
-	void RemoveTransientMoveMode(FName MoveName);
+	// The states of each Temporary move for this mover
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, category = "Movement Modes|Temporary")
+	TArray<FTemporaryMoveInfos> TemporaryMoveState;
 
 
-	// Check Transient moves and select active Transient mode.
-	void CheckTransientMoves(const FMoverCheckRequest Request, const TArray<FExpandedHitResult> Surfaces);
+	// Add a Temporary move mode
+	UFUNCTION(BlueprintCallable, Category="Mover|Movement Modes|Temporary", meta=(NotBlueprintThreadSafe))
+	void AddTemporaryMoveMode(TSubclassOf<UBaseTemporaryMove> Class);
 
-	// Process and blend actives Transient movements in a sync manner (transitions from mode to mode are done at the same speed)
-	FMechanicProperties ProcessTransientMoves(const FMechanicProperties ContingentMoveResult, const FMomentum currentMomentum, const FTransform SurfacesMovement, const float DeltaTime);
+	// Remove a Temporary move mode
+	UFUNCTION(BlueprintCallable, Category="Mover|Movement Modes|Temporary", meta=(NotBlueprintThreadSafe))
+	void RemoveTemporaryMoveMode(FName MoveName);
+
+
+	// Check Temporary moves and select active Temporary mode.
+	void CheckTemporaryMoves(const FMoverRequest Request, const TArray<FExpandedHitResult> Surfaces);
+
+	// Process and blend actives Temporary movements in a sync manner (transitions from mode to mode are done at the same speed)
+	FMechanicProperties ProcessTemporaryMoves(const FMechanicProperties ContinuousMoveResult, const FMomentum currentMomentum, const FTransform SurfacesMovement, const float DeltaTime);
 
 	// Traversal ------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -361,14 +292,13 @@ public:
 #pragma region Movement
 
 public:
-
-	// The currently executed movement
+	// The component velocity before friction.
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Movement")
-	FMechanicProperties CurrentMovement;
+	FVector DesiredVelocity;
 
-	
+
 	// Move a body according to Movement
-	void MoveBody(FBodyInstance* Body, const FMechanicProperties movement, const float Delta) const;
+	void MoveBody(const FBodyInstance* Body, const FMechanicProperties Movement, const float DeltaTime) const;
 
 	// Get the orientation, keeping body upright.
 	static bool GetAngularOrientation(FQuat& Orientation, const FQuat BodyOrientation, const FAngularMechanic angularMechanic, const FVector Gravity,

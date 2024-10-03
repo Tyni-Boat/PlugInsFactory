@@ -18,34 +18,49 @@
 
 //------------------------------------------------------------------------------------------------------------------------
 
-FSurfaceMobility::FSurfaceMobility()
+FMoverHitResult::FMoverHitResult()
 {
 }
 
-FSurfaceMobility::FSurfaceMobility(const FHitResult& hit)
+FMoverHitResult::FMoverHitResult(FHitResult hit, FName owner, FCollisionShape shape)
+{
+	Hit = hit;
+	OwningMovement = owner;
+	Shape = shape;
+}
+
+
+//------------------------------------------------------------------------------------------------------------------------
+
+
+FSurfaceVelocity::FSurfaceVelocity()
+{
+}
+
+FSurfaceVelocity::FSurfaceVelocity(const FHitResult& hit)
 {
 	Component = hit.Component;
 	BoneName = hit.BoneName;
 }
 
-bool FSurfaceMobility::UpdateTracking(float deltaTime)
+bool FSurfaceVelocity::UpdateTracking(float deltaTime)
 {
 	FVector linearVelocity = FVector(0);
 	FVector angularVelocity = FVector(0);
 	bool validSurface = false;
 
-	if (Component.IsValid())
+	if (Component.Get())
 	{
 		validSurface = true;
-
+	
 		//Linear Part
 		linearVelocity = _lastPosition.ContainsNaN() ? FVector(0) : (Component->GetSocketLocation(BoneName) - _lastPosition) / deltaTime;
 		_lastPosition = Component->GetSocketLocation(BoneName);
-
+	
 		//Angular
 		const FQuat targetQuat = Component->GetSocketQuaternion(BoneName);
 		FQuat currentQuat = _lastRotation;
-
+	
 		//Get Angular speed
 		if (!_lastRotation.ContainsNaN())
 		{
@@ -65,7 +80,7 @@ bool FSurfaceMobility::UpdateTracking(float deltaTime)
 	return validSurface;
 }
 
-FVector FSurfaceMobility::GetVelocityAt(const FVector point, const FVector Normal, const float deltaTime) const
+FVector FSurfaceVelocity::GetVelocityAt(const FVector point, const FVector Normal, const float deltaTime) const
 {
 	FVector linearPart = LinearVelocity;
 	if (Normal.SquaredLength() > 0 && linearPart.SquaredLength() > 0)
@@ -89,6 +104,7 @@ FVector FSurfaceMobility::GetVelocityAt(const FVector point, const FVector Norma
 	return linearPart + rotVel + centripetal;
 }
 
+//------------------------------------------------------------------------------------------------------------------------
 
 FSurface::FSurface()
 {
@@ -159,11 +175,11 @@ FCommonMoveInfos::FCommonMoveInfos()
 }
 
 //------------------------------------------------------------------------------------------------------------------------
-FContingentMoveInfos::FContingentMoveInfos()
+FContinuousMoveInfos::FContinuousMoveInfos()
 {
 }
 
-FContingentMoveInfos::FContingentMoveInfos(UBaseContingentMove* move)
+FContinuousMoveInfos::FContinuousMoveInfos(UBaseContinuousMove* move)
 {
 	if (!move)
 		return;
@@ -172,11 +188,11 @@ FContingentMoveInfos::FContingentMoveInfos(UBaseContingentMove* move)
 	BaseInfos.BlendSpeed = move->BlendSpeed;
 }
 
-FTransientMoveInfos::FTransientMoveInfos()
+FTemporaryMoveInfos::FTemporaryMoveInfos()
 {
 }
 
-FTransientMoveInfos::FTransientMoveInfos(UBaseTransientMove* move)
+FTemporaryMoveInfos::FTemporaryMoveInfos(UBaseTemporaryMove* move)
 {
 	if (!move)
 		return;
@@ -259,7 +275,7 @@ FVector UStructExtension::GetSurfacesVelocityFromNormal(const TArray<FSurface>& 
 	return subSequentVelocity;
 }
 
-FVector UStructExtension::GetAverageSurfaceVelocityAt(const TArray<FSurfaceMobility>& SurfacesMobilities, const FVector point, const float deltaTime, FVector Normal)
+FVector UStructExtension::GetAverageSurfaceVelocityAt(const TArray<FSurfaceVelocity>& SurfacesMobilities, const FVector point, const float deltaTime, FVector Normal)
 {
 	if (SurfacesMobilities.Num() <= 0)
 		return FVector(0);
@@ -290,7 +306,7 @@ FVector UStructExtension::GetAverageSurfaceVelocityAt(const TArray<FSurfaceMobil
 	return cumulated;
 }
 
-FVector UStructExtension::GetAverageSurfaceAngularSpeed(const TArray<FSurfaceMobility>& SurfacesMobilities)
+FVector UStructExtension::GetAverageSurfaceAngularSpeed(const TArray<FSurfaceVelocity>& SurfacesMobilities)
 {
 	if (SurfacesMobilities.Num() <= 0)
 		return FVector(0);
@@ -346,27 +362,26 @@ bool UBaseMoverMovementMode::IsValid() const
 
 //------------------------------------------------------------------------------------------------------------------------
 
-UBaseContingentMove::UBaseContingentMove()
+UBaseContinuousMove::UBaseContinuousMove()
 {
 }
 
 
-bool UBaseContingentMove::CheckContingentMovement_Implementation(UActorComponent* MoverActorComponent, const TArray<FExpandedHitResult>& Surfaces, FContingentMoveInfos& MoveInfos,
+bool UBaseContinuousMove::CheckContinuousMovement_Implementation(UActorComponent* MoverActorComponent, const TArray<FMoverHitResult>& Surfaces, FContinuousMoveInfos& MoveInfos,
                                                                  const FMomentum& CurrentMomentum,
-                                                                 const FVector MoveInput, const FMoverInputPool Inputs, const TArray<FContingentMoveInfos>& ContingentMoves,
-                                                                 const TArray<FTransientMoveInfos>& TransientMoves,
+                                                                 const FVector MoveInput, const FMoverInputPool Inputs, const TArray<FContinuousMoveInfos>& ContinuousMoves,
+                                                                 const TArray<FTemporaryMoveInfos>& TemporaryMoves,
                                                                  TMap<FName, FVector>& CustomProperties, int& SurfacesFlag) const
 {
 	return false;
 }
 
-FMechanicProperties UBaseContingentMove::ProcessContingentMovement_Implementation(UActorComponent* MoverActorComponent, FContingentMoveInfos& MoveInfos,
+FMechanicProperties UBaseContinuousMove::ProcessContinuousMovement_Implementation(UActorComponent* MoverActorComponent, FContinuousMoveInfos& MoveInfos,
                                                                                   const FMomentum& CurrentMomentum, const FVector MoveInput,
                                                                                   const FMoverInputPool Inputs, const FTransform SurfacesMovement, const float DeltaTime) const
 {
 	auto result = FMechanicProperties();
 	result.Gravity = CurrentMomentum.Gravity;
-	result.Linear.DecelerationSpeed = 0;
 	result.SurfacesMovement = SurfacesMovement;
 	return result;
 }
@@ -375,26 +390,26 @@ FMechanicProperties UBaseContingentMove::ProcessContingentMovement_Implementatio
 //------------------------------------------------------------------------------------------------------------------------
 
 
-UBaseTransientMove::UBaseTransientMove()
+UBaseTemporaryMove::UBaseTemporaryMove()
 {
 }
 
 
-bool UBaseTransientMove::CheckTransientMovement_Implementation(UActorComponent* MoverActorComponent, const TArray<FExpandedHitResult>& Surfaces, FTransientMoveInfos& MoveInfos,
+bool UBaseTemporaryMove::CheckTemporaryMovement_Implementation(UActorComponent* MoverActorComponent, const TArray<FExpandedHitResult>& Surfaces, FTemporaryMoveInfos& MoveInfos,
                                                                const FMomentum& CurrentMomentum,
-                                                               const FVector MoveInput, const FMoverInputPool Inputs, const TArray<FContingentMoveInfos>& ContingentMoves,
-                                                               const TArray<FTransientMoveInfos>& TransientMoves,
+                                                               const FVector MoveInput, const FMoverInputPool Inputs, const TArray<FContinuousMoveInfos>& ContinuousMoves,
+                                                               const TArray<FTemporaryMoveInfos>& TemporaryMoves,
                                                                TMap<FName, FVector>& CustomProperties) const
 {
 	return false;
 }
 
-FMechanicProperties UBaseTransientMove::ProcessTransientMovement_Implementation(UActorComponent* MoverActorComponent, const FMechanicProperties ContingentMove,
-                                                                                FTransientMoveInfos& MoveInfos,
+FMechanicProperties UBaseTemporaryMove::ProcessTemporaryMovement_Implementation(UActorComponent* MoverActorComponent, const FMechanicProperties ContinuousMove,
+                                                                                FTemporaryMoveInfos& MoveInfos,
                                                                                 const FMomentum& CurrentMomentum, const FVector MoveInput,
                                                                                 const FMoverInputPool Inputs, const FTransform SurfacesMovement, const float DeltaTime) const
 {
-	return ContingentMove;
+	return ContinuousMove;
 }
 
 #pragma endregion

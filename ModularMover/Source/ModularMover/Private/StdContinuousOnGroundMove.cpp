@@ -25,16 +25,14 @@ UStdContinuousOnGroundMove::UStdContinuousOnGroundMove()
 		this->ScanSurfaceOffset = 50;
 }
 
-bool UStdContinuousOnGroundMove::CheckContingentMovement_Implementation(UActorComponent* MoverActorComponent, const TArray<FExpandedHitResult>& Surfaces,
-                                                                        FContingentMoveInfos& MoveInfos, const FMomentum& CurrentMomentum,
-                                                                        const FVector MoveInput, const FMoverInputPool Inputs, const TArray<FContingentMoveInfos>& ContingentMoves,
-                                                                        const TArray<FTransientMoveInfos>& TransientMoves,
+bool UStdContinuousOnGroundMove::CheckContinuousMovement_Implementation(UActorComponent* MoverActorComponent, const TArray<FMoverHitResult>& Surfaces,
+                                                                        FContinuousMoveInfos& MoveInfos, const FMomentum& CurrentMomentum,
+                                                                        const FVector MoveInput, const FMoverInputPool Inputs, const TArray<FContinuousMoveInfos>& ContinuousMoves,
+                                                                        const TArray<FTemporaryMoveInfos>& TemporaryMoves,
                                                                         TMap<FName, FVector>& CustomProperties, int& SurfacesFlag) const
 {
 	if (CurrentMomentum.Gravity.SquaredLength() <= 0)
 		return false;
-	const auto shape = CurrentMomentum.GetShape();
-	const FVector lowestPoint = UPhysicToolbox::GetPointOnShapeInDirection(shape, CurrentMomentum.Transform, CurrentMomentum.Gravity);
 	const FVector upVector = -CurrentMomentum.Gravity.GetSafeNormal();
 
 	//Selection
@@ -45,14 +43,16 @@ bool UStdContinuousOnGroundMove::CheckContingentMovement_Implementation(UActorCo
 	//Collect surfaces meeting conditions
 	for (int i = 0; i < Surfaces.Num(); i++)
 	{
-		if (!Surfaces[i].HitResult.Component.IsValid())
+		if(Surfaces[i].OwningMovement != ModeName)
 			continue;
-		if (Surfaces[i].CollisionResponse != ECR_Block)
+		const auto shape = Surfaces[i].Shape;
+		const FVector lowestPoint = UPhysicToolbox::GetPointOnShapeInDirection(shape, CurrentMomentum.Transform, CurrentMomentum.Gravity);
+		if (!Surfaces[i].Hit.GetComponent())
 			continue;
-		if (!GroundChannels.Contains(Surfaces[i].HitResult.Component->GetCollisionObjectType()))
+		if (!GroundChannels.Contains(Surfaces[i].Hit.Component->GetCollisionObjectType()))
 			continue;
-		const FVector fromCenterVector = Surfaces[i].HitResult.ImpactPoint - CurrentMomentum.Transform.GetLocation();
-		const FVector fromLowPtVector = Surfaces[i].HitResult.ImpactPoint - lowestPoint;
+		const FVector fromCenterVector = Surfaces[i].Hit.ImpactPoint - CurrentMomentum.Transform.GetLocation();
+		const FVector fromLowPtVector = Surfaces[i].Hit.ImpactPoint - lowestPoint;
 		const FVector surfaceCenterHeightVector = fromCenterVector.ProjectOnToNormal(upVector);
 		const FVector surfaceLowHeightVector = fromLowPtVector.ProjectOnToNormal(upVector);
 		const float centerDot = upVector | fromCenterVector;
@@ -61,14 +61,14 @@ bool UStdContinuousOnGroundMove::CheckContingentMovement_Implementation(UActorCo
 			continue;
 		if (verticalDot < 0 && surfaceLowHeightVector.Length() > MaxGroundDistance)
 			continue;
-		if (Surfaces[i].OffsetType == ESurfaceTraceHitType::OuterHit && verticalDot > 0)
+		if (Surfaces[i].Hit.Normal != Surfaces[i].Hit.ImpactNormal && verticalDot > 0)
 		{
 			if (!MoveInfos.BaseInfos.bIsActiveMode)
 				continue;
-			if (!UVectorToolbox::IsVectorCone(Surfaces[i].HitResult.ImpactNormal, Surfaces[i].HitResult.Normal, 10))
+			if (!UVectorToolbox::IsVectorCone(Surfaces[i].Hit.ImpactNormal, Surfaces[i].Hit.Normal, 10))
 				continue;
 		}
-		const float angle = FMath::Acos(Surfaces[i].HitResult.ImpactNormal | upVector);
+		const float angle = FMath::Acos(Surfaces[i].Hit.ImpactNormal | upVector);
 		if (angle > FMath::DegreesToRadians(MaxSurfaceAngle))
 			continue;
 		if (surfaceCenterHeightVector.Length() >= bestDistance)
@@ -92,80 +92,80 @@ bool UStdContinuousOnGroundMove::CheckContingentMovement_Implementation(UActorCo
 	return Surfaces.IsValidIndex(bestIndex);
 }
 
-FMechanicProperties UStdContinuousOnGroundMove::ProcessContingentMovement_Implementation(UActorComponent* MoverActorComponent, FContingentMoveInfos& MoveInfos,
+FMechanicProperties UStdContinuousOnGroundMove::ProcessContinuousMovement_Implementation(UActorComponent* MoverActorComponent, FContinuousMoveInfos& MoveInfos,
                                                                                          const FMomentum& CurrentMomentum, const FVector MoveInput,
                                                                                          const FMoverInputPool Inputs, const FTransform SurfacesMovement, const float DeltaTime) const
 {
-	const bool validSurface = CurrentMomentum.Surfaces.IsValidIndex(0);
-	const FVector upVector = -CurrentMomentum.Gravity.GetSafeNormal();
-	if (!validSurface || upVector.SquaredLength() <= 0)
-		return Super::ProcessContingentMovement_Implementation(MoverActorComponent, MoveInfos, CurrentMomentum, MoveInput, Inputs, SurfacesMovement, DeltaTime);
+	// const bool validSurface = CurrentMomentum.Surfaces.IsValidIndex(0);
+	// const FVector upVector = -CurrentMomentum.Gravity.GetSafeNormal();
+	// if (!validSurface || upVector.SquaredLength() <= 0)
+	return Super::ProcessContinuousMovement_Implementation(MoverActorComponent, MoveInfos, CurrentMomentum, MoveInput, Inputs, SurfacesMovement, DeltaTime);
 
-	FMechanicProperties result;
-	const auto shape = CurrentMomentum.GetShape();
-	const FVector lowestPoint = UPhysicToolbox::GetPointOnShapeInDirection(shape, CurrentMomentum.Transform, CurrentMomentum.Gravity);
-	const FVector4 moveParams = GetMoveParams(Inputs);
-	const float friction = CurrentMomentum.Surfaces[0].SurfacePhysicProperties.X;
-	const FVector impactNormal = CurrentMomentum.Surfaces[0].HitResult.ImpactNormal;
+	// FMechanicProperties result;
+	// const auto shape = FCollisionShape::MakeCapsule(50,100);//CurrentMomentum.GetShape();
+	// const FVector lowestPoint = UPhysicToolbox::GetPointOnShapeInDirection(shape, CurrentMomentum.Transform, CurrentMomentum.Gravity);
+	// const FVector4 moveParams = GetMoveParams(Inputs);
+	// const float friction = CurrentMomentum.Surfaces[0].SurfacePhysicProperties.X;
+	// const FVector impactNormal = CurrentMomentum.Surfaces[0].HitResult.ImpactNormal;
+	//
+	// //Linear Move
+	// result.Gravity = CurrentMomentum.Gravity;
+	// result.Linear.TerminalVelocity = moveParams.X;
+	// result.Linear.Acceleration = UVectorToolbox::Project3DVector(MoveInput, UVectorToolbox::VectorCone(impactNormal, upVector, 35)) * moveParams.Y * friction;
+	// result.Linear.DecelerationSpeed = moveParams.Z * friction;
+	// result.SurfacesMovement = SurfacesMovement;
+	//
+	// //Rotation
+	// result.Angular.LookOrientation = UVectorToolbox::Project3DVector(MoveInput, upVector).GetSafeNormal() * moveParams.W;
+	//
+	// //Root Motion
+	// FVector linearRM;
+	// if (UStructExtension::ReadVectorInput(Inputs, RootMotionLinearVelocityInput, linearRM))
+	// 	result.Linear.Acceleration = (linearRM / DeltaTime) * friction;
+	// FRotator angularRM;
+	// if (UStructExtension::ReadRotationInput(Inputs, RootMotionAngularVelocityInput, angularRM))
+	// 	result.Angular.OrientationDiff = angularRM.Quaternion();
+	//
+	// //Sliding
+	// const float angle = FMath::Acos(impactNormal | upVector);
+	// if (angle >= FMath::DegreesToRadians(MinSlopeAngle))
+	// {
+	// 	FMechanicProperties slopeResult;
+	// 	FVector slideDirection = FVector::VectorPlaneProject(impactNormal, upVector).GetSafeNormal();
+	// 	FVector controlDirection = FVector::VectorPlaneProject(UVectorToolbox::Project3DVector(MoveInput, impactNormal), slideDirection);
+	//
+	// 	slopeResult.Linear.TerminalVelocity = SlidingMoveParams.X;
+	// 	slopeResult.Linear.Acceleration = FVector::VectorPlaneProject(-upVector, impactNormal).GetSafeNormal() * SlidingMoveParams.Y + controlDirection * SlideControlSpeed;
+	// 	slopeResult.Linear.DecelerationSpeed = SlidingMoveParams.Z;
+	// 	slopeResult.Angular.LookOrientation = SlidingMoveParams.W > 0 ? slideDirection * SlidingMoveParams.W : result.Angular.LookOrientation;
+	//
+	// 	const float slopeMoveAmount = FMath::GetMappedRangeValueClamped(TRange<float>(MinSlopeAngle, MaxSlopeAngle), TRange<float>(0, 1), FMath::RadiansToDegrees(angle));
+	// 	const float slideMoveAmount = (result.Linear.Acceleration.GetSafeNormal() | slideDirection);
+	// 	const float accScale = 1 - FMath::GetMappedRangeValueClamped(TRange<float>(-1, 1), TRange<float>(0, 1), slideMoveAmount);
+	// 	result.Linear.Acceleration -= result.Linear.Acceleration * accScale * slopeMoveAmount;
+	// 	result.Linear.TerminalVelocity -= result.Linear.TerminalVelocity * accScale * slopeMoveAmount;
+	// 	if (angle >= FMath::DegreesToRadians(MaxSlopeAngle))
+	// 	{
+	// 		result.Linear = slopeResult.Linear;
+	// 		result.Angular = slopeResult.Angular;
+	// 	}
+	// }
+	//
+	// //Snapping
+	// const FVector snapVector = UVectorToolbox::GetSnapOnSurfaceVector(lowestPoint - upVector, CurrentMomentum.Surfaces[0].HitResult, upVector);
+	// if (snapVector.SquaredLength() > 0)
+	// {
+	// 	if ((snapVector | upVector) >= 0 || (bDownSnapping && (snapVector | upVector) < 0))
+	// 	{
+	// 		result.Linear.SnapDisplacement = snapVector * FMath::Clamp(DeltaTime * SnapSpeed, 0, 1);
+	// 	}
+	// 	else
+	// 	{
+	// 		result.Linear.Acceleration += result.Gravity;
+	// 	}
+	// }
 
-	//Linear Move
-	result.Gravity = CurrentMomentum.Gravity;
-	result.Linear.TerminalVelocity = moveParams.X;
-	result.Linear.Acceleration = UVectorToolbox::Project3DVector(MoveInput, UVectorToolbox::VectorCone(impactNormal, upVector, 35)) * moveParams.Y * friction;
-	result.Linear.DecelerationSpeed = moveParams.Z * friction;
-	result.SurfacesMovement = SurfacesMovement;
-
-	//Rotation
-	result.Angular.LookOrientation = UVectorToolbox::Project3DVector(MoveInput, upVector).GetSafeNormal() * moveParams.W;
-
-	//Root Motion
-	FVector linearRM;
-	if (UStructExtension::ReadVectorInput(Inputs, RootMotionLinearVelocityInput, linearRM))
-		result.Linear.Acceleration = (linearRM / DeltaTime) * friction;
-	FRotator angularRM;
-	if (UStructExtension::ReadRotationInput(Inputs, RootMotionAngularVelocityInput, angularRM))
-		result.Angular.OrientationDiff = angularRM.Quaternion();
-
-	//Sliding
-	const float angle = FMath::Acos(impactNormal | upVector);
-	if (angle >= FMath::DegreesToRadians(MinSlopeAngle))
-	{
-		FMechanicProperties slopeResult;
-		FVector slideDirection = FVector::VectorPlaneProject(impactNormal, upVector).GetSafeNormal();
-		FVector controlDirection = FVector::VectorPlaneProject(UVectorToolbox::Project3DVector(MoveInput, impactNormal), slideDirection);
-
-		slopeResult.Linear.TerminalVelocity = SlidingMoveParams.X;
-		slopeResult.Linear.Acceleration = FVector::VectorPlaneProject(-upVector, impactNormal).GetSafeNormal() * SlidingMoveParams.Y + controlDirection * SlideControlSpeed;
-		slopeResult.Linear.DecelerationSpeed = SlidingMoveParams.Z;
-		slopeResult.Angular.LookOrientation = SlidingMoveParams.W > 0 ? slideDirection * SlidingMoveParams.W : result.Angular.LookOrientation;
-
-		const float slopeMoveAmount = FMath::GetMappedRangeValueClamped(TRange<float>(MinSlopeAngle, MaxSlopeAngle), TRange<float>(0, 1), FMath::RadiansToDegrees(angle));
-		const float slideMoveAmount = (result.Linear.Acceleration.GetSafeNormal() | slideDirection);
-		const float accScale = 1 - FMath::GetMappedRangeValueClamped(TRange<float>(-1, 1), TRange<float>(0, 1), slideMoveAmount);
-		result.Linear.Acceleration -= result.Linear.Acceleration * accScale * slopeMoveAmount;
-		result.Linear.TerminalVelocity -= result.Linear.TerminalVelocity * accScale * slopeMoveAmount;
-		if (angle >= FMath::DegreesToRadians(MaxSlopeAngle))
-		{
-			result.Linear = slopeResult.Linear;
-			result.Angular = slopeResult.Angular;
-		}
-	}
-
-	//Snapping
-	const FVector snapVector = UVectorToolbox::GetSnapOnSurfaceVector(lowestPoint - upVector, CurrentMomentum.Surfaces[0].HitResult, upVector);
-	if (snapVector.SquaredLength() > 0)
-	{
-		if ((snapVector | upVector) >= 0 || (bDownSnapping && (snapVector | upVector) < 0))
-		{
-			result.Linear.SnapDisplacement = snapVector * FMath::Clamp(DeltaTime * SnapSpeed, 0, 1);
-		}
-		else
-		{
-			result.Linear.Acceleration += result.Gravity;
-		}
-	}
-
-	return result;
+	//return result;
 }
 
 
