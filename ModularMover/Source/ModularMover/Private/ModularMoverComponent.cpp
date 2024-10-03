@@ -169,6 +169,9 @@ void UModularMoverComponent::AsyncPhysicsTickComponent(float DeltaTime, float Si
 				}
 			}
 
+			// Cache this Move
+			CurrentMovement = move;
+
 			//Move
 			MoveBody(BodyInstance, move, DeltaTime);
 		}
@@ -194,7 +197,7 @@ void UModularMoverComponent::EvaluateMovementOnSurfaces(const FMoverCheckRequest
 	{
 		for (int i = 0; i < SurfacesHits.Num(); i++)
 		{
-			if (SurfacesHits[i].HitResult.GetComponent())
+			if (SurfacesHits[i].HitResult.HasValidHitObjectHandle())
 			{
 				UDebugToolbox::DrawDebugCircleOnHit(SurfacesHits[i].HitResult, 10, FColor::White, 0, 0.5);
 			}
@@ -652,7 +655,7 @@ void UModularMoverComponent::FixOverlapHits(int& maxDepth, const FTransform Tran
 		const bool isBlocking = overlapHit.CollisionResponse == ECollisionResponse::ECR_Block;
 		if (!isBlocking || IsIgnoringCollision())
 			continue;
-		if (overlapHit.HitResult.GetComponent() && overlapHit.HitResult.GetComponent()->ComputePenetration(penetrationInfos, shape, location, rotation))
+		if (overlapHit.HitResult.HasValidHitObjectHandle() && overlapHit.HitResult.Component->ComputePenetration(penetrationInfos, shape, location, rotation))
 		{
 			comQueryParams.AddIgnoredComponent(overlapHit.HitResult.GetComponent());
 			const FVector depForce = penetrationInfos.Direction * penetrationInfos.Distance;

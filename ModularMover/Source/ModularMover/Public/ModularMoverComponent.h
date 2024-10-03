@@ -184,7 +184,7 @@ public:
 
 	// The component mass
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, category = "Physic|RigidBody")
-	float Mass = 80;
+	float Mass = 80;	
 
 protected:
 	FMomentum _currentMomentum;
@@ -360,6 +360,13 @@ public:
 
 #pragma region Movement
 
+public:
+
+	// The currently executed movement
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Movement")
+	FMechanicProperties CurrentMovement;
+
+	
 	// Move a body according to Movement
 	void MoveBody(FBodyInstance* Body, const FMechanicProperties movement, const float Delta) const;
 

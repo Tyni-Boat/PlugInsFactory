@@ -218,7 +218,7 @@ UBaseTransientMove* UModularMoverSubsystem::GetTransientMoveObject(const FName M
 
 void UModularMoverSubsystem::AddTrackedSurface(const FHitResult& hit)
 {
-	if(!hit.Component.IsValid())
+	if(!hit.HasValidHitObjectHandle())
 		return;
 	if(_trackedSurfaces.Contains(hit.Component))
 		return;
