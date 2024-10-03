@@ -2,7 +2,6 @@
 #include "VectorToolbox.h"
 
 
-
 FVector UVectorToolbox::VectorCone(const FVector inVector, const FVector normal, const float alphaAngle)
 {
 	FVector n = normal;
@@ -67,7 +66,7 @@ FVector UVectorToolbox::Project2DInputs(FVector2D input, FTransform transformRel
 
 FVector UVectorToolbox::Project3DVector(FVector inVector, FVector planeNormal)
 {
-	if(!planeNormal.Normalize())
+	if (!planeNormal.Normalize())
 		return inVector;
 	const float lenght = inVector.Length();
 	const FVector result = FVector::VectorPlaneProject(inVector, planeNormal).GetSafeNormal() * lenght;
@@ -84,6 +83,23 @@ FVector UVectorToolbox::GetSnapOnSurfaceVector(const FVector point, const FHitRe
 	if (snapDirection.SquaredLength() > 0)
 		snapVector = snapVector.ProjectOnToNormal(snapDirection);
 	return snapVector;
+}
+
+FVector UVectorToolbox::AddVectorUntilLimit(const FVector Base, const FVector Director, const float Limit)
+{
+	if (Director.SquaredLength() <= 0)
+		return Base;
+	const FVector result = Base + Director;
+	if ((Base | Director) <= 0)
+		return result;
+	if (Base.SquaredLength() <= 0)
+		return result.GetClampedToMaxSize(Limit);
+	const FVector baseProjection = Base.ProjectOnToNormal(Director.GetSafeNormal());
+	const FVector resProjection = result.ProjectOnToNormal(Director.GetSafeNormal());
+	const FVector resPlane = FVector::VectorPlaneProject(result, Director.GetSafeNormal());
+	if (baseProjection.Length() < Limit)
+		return resPlane + resProjection.GetClampedToMaxSize(Limit);
+	return Base;
 }
 
 bool UVectorToolbox::IntersectLineLine(const FVector& A1, const FVector& A2, const FVector& B1, const FVector& B2, FVector& IntersectionPoint)
@@ -103,7 +119,7 @@ bool UVectorToolbox::IntersectLineLine(const FVector& A1, const FVector& A2, con
 }
 
 int UVectorToolbox::IntersectLineSphere(const FVector& LinePoint, const FVector& LineDir, const FVector& SphereCenter, float SphereRadius, FVector& IntersectionPoint1,
-	FVector& IntersectionPoint2)
+                                        FVector& IntersectionPoint2)
 {
 	FVector oc = LinePoint - SphereCenter;
 	const float a = FVector::DotProduct(LineDir, LineDir);
@@ -111,16 +127,21 @@ int UVectorToolbox::IntersectLineSphere(const FVector& LinePoint, const FVector&
 	const float c = FVector::DotProduct(oc, oc) - SphereRadius * SphereRadius;
 	const float discriminant = b * b - 4 * a * c;
 
-	if (discriminant < 0) {
+	if (discriminant < 0)
+	{
 		// No intersection
 		return 0;
-	} else if (discriminant == 0) {
+	}
+	else if (discriminant == 0)
+	{
 		// One intersection (tangent)
 		float t = -b / (2 * a);
 		IntersectionPoint1 = LinePoint + t * LineDir;
 		IntersectionPoint2 = IntersectionPoint1;
 		return 1;
-	} else {
+	}
+	else
+	{
 		// Two intersections (secant)
 		const float sqrtDiscriminant = FMath::Sqrt(discriminant);
 		const float t1 = (-b + sqrtDiscriminant) / (2 * a);
