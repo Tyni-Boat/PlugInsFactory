@@ -34,6 +34,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Toolbox|Vectors", meta=(BlueprintThreadSafe))
 	static FVector GetSnapOnSurfaceVector(const FVector point, const FHitResult surface, const FVector axis);
 
+	//Add the director vector to the base if the resulting vector's lenght do not exceed Max Lenght 
+	UFUNCTION(BlueprintPure, Category = "Toolbox|Vectors", meta=(BlueprintThreadSafe))
+	static FVector AddVectorUntilLimit(const FVector Base,const FVector Director, const float Limit);
+
 	//Calculates the intersection point of two lines defined by points ( A1, A2 ) and ( B1, B2 )
 	UFUNCTION(BlueprintPure, Category = "Toolbox|Vectors", meta=(BlueprintThreadSafe))
 	static bool IntersectLineLine(const FVector& A1, const FVector& A2, const FVector& B1, const FVector& B2, FVector& IntersectionPoint);
