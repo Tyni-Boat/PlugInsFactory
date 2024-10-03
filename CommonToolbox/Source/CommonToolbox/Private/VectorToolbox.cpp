@@ -87,19 +87,13 @@ FVector UVectorToolbox::GetSnapOnSurfaceVector(const FVector point, const FHitRe
 
 FVector UVectorToolbox::AddVectorUntilLimit(const FVector Base, const FVector Director, const float Limit)
 {
-	if (Director.SquaredLength() <= 0)
-		return Base;
 	const FVector result = Base + Director;
-	if ((Base | Director) <= 0)
-		return result;
-	if (Base.SquaredLength() <= 0)
-		return result.GetClampedToMaxSize(Limit);
-	const FVector baseProjection = Base.ProjectOnToNormal(Director.GetSafeNormal());
-	const FVector resProjection = result.ProjectOnToNormal(Director.GetSafeNormal());
-	const FVector resPlane = FVector::VectorPlaneProject(result, Director.GetSafeNormal());
-	if (baseProjection.Length() < Limit)
-		return resPlane + resProjection.GetClampedToMaxSize(Limit);
-	return Base;
+	if((Base | Director) > 0)
+	{
+		const float maxLenght = FMath::Max(Base.Length(), Limit);
+		return result.GetClampedToMaxSize(maxLenght);
+	}
+	return result;
 }
 
 bool UVectorToolbox::IntersectLineLine(const FVector& A1, const FVector& A2, const FVector& B1, const FVector& B2, FVector& IntersectionPoint)
